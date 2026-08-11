@@ -12,6 +12,7 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const SESSION_KEY = 'ezkin:auth-session'
 const TOKEN_KEY = 'ezkin:access-token'
 const MOCK_USERS_KEY = 'ezkin:mock-users'
+const LEGACY_MOCK_USERS_KEYS = ['ezkin_mock_users', 'ezkin_users']
 
 interface StoredMockUser {
   user: User
@@ -46,18 +47,95 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-function readMockUsers(): StoredMockUser[] {
-  const saved = localStorage.getItem(MOCK_USERS_KEY)
-  if (!saved) return [demoAccount]
+function isUser(value: unknown): value is User {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<User>
+  return typeof candidate.id === 'string'
+    && typeof candidate.email === 'string'
+    && typeof candidate.onboardingCompleted === 'boolean'
+}
 
-  try {
-    const users = JSON.parse(saved) as StoredMockUser[]
-    return users.some(({ user }) => user.id === demoAccount.user.id)
-      ? users
-      : [demoAccount, ...users]
-  } catch {
-    return [demoAccount]
+function parseStoredAccount(value: unknown): StoredMockUser | null {
+  if (!value || typeof value !== 'object') return null
+  const candidate = value as {
+    user?: unknown
+    password?: unknown
+    id?: unknown
+    email?: unknown
+    nickname?: unknown
+    onboardingCompleted?: unknown
   }
+
+  if (isUser(candidate.user) && typeof candidate.password === 'string') {
+    return {
+      user: { ...candidate.user, email: normalizeEmail(candidate.user.email) },
+      password: candidate.password,
+    }
+  }
+
+  // 이전 Mock 버전의 flat user 레코드도 현재 credential 구조로 안전하게 옮깁니다.
+  if (
+    typeof candidate.id === 'string'
+    && typeof candidate.email === 'string'
+    && typeof candidate.password === 'string'
+    && typeof candidate.onboardingCompleted === 'boolean'
+  ) {
+    return {
+      user: {
+        id: candidate.id,
+        email: normalizeEmail(candidate.email),
+        nickname: typeof candidate.nickname === 'string' ? candidate.nickname : undefined,
+        onboardingCompleted: candidate.onboardingCompleted,
+      },
+      password: candidate.password,
+    }
+  }
+
+  return null
+}
+
+function parseMockUserStore(saved: string): StoredMockUser[] {
+  try {
+    const parsed = JSON.parse(saved) as unknown
+    const records = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === 'object' && Array.isArray((parsed as { users?: unknown }).users)
+        ? (parsed as { users: unknown[] }).users
+        : []
+    return records.map(parseStoredAccount).filter((account): account is StoredMockUser => Boolean(account))
+  } catch {
+    return []
+  }
+}
+
+function normalizeMockUsers(users: StoredMockUser[]): StoredMockUser[] {
+  const normalized = [demoAccount]
+  const knownEmails = new Set([demoAccount.user.email])
+  const knownIds = new Set([demoAccount.user.id])
+
+  for (const account of users) {
+    const email = normalizeEmail(account.user.email)
+    if (knownEmails.has(email) || knownIds.has(account.user.id)) continue
+    normalized.push({ ...account, user: { ...account.user, email } })
+    knownEmails.add(email)
+    knownIds.add(account.user.id)
+  }
+
+  return normalized
+}
+
+function readMockUsers(): StoredMockUser[] {
+  const savedStores = [MOCK_USERS_KEY, ...LEGACY_MOCK_USERS_KEYS]
+    .map((key) => localStorage.getItem(key))
+    .filter((saved): saved is string => saved !== null)
+  const users = normalizeMockUsers(savedStores.flatMap(parseMockUserStore))
+
+  const currentStore = localStorage.getItem(MOCK_USERS_KEY)
+  if (currentStore !== JSON.stringify(users)) {
+    writeMockUsers(users)
+  }
+
+  return users
 }
 
 function writeMockUsers(users: StoredMockUser[]): void {
@@ -68,6 +146,7 @@ function writeMockUsers(users: StoredMockUser[]): void {
 function saveSession(response: AuthResponse): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(response))
   if (response.accessToken) localStorage.setItem(TOKEN_KEY, response.accessToken)
+  else localStorage.removeItem(TOKEN_KEY)
 }
 
 function clearSession(): void {
@@ -122,7 +201,7 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   await delay()
   const email = normalizeEmail(credentials.email)
   const account = readMockUsers().find(
-    ({ user, password }) => user.email === email && password === credentials.password,
+    ({ user, password }) => normalizeEmail(user.email) === email && password === credentials.password,
   )
 
   if (!account) {
@@ -151,8 +230,8 @@ export async function signup(payload: SignupRequest): Promise<AuthResponse> {
   const users = readMockUsers()
   const email = normalizeEmail(payload.email)
 
-  if (users.some(({ user }) => user.email === email)) {
-    throw new AuthServiceError('EMAIL_IN_USE', '이미 사용 중인 이메일이에요.')
+  if (users.some(({ user }) => normalizeEmail(user.email) === email)) {
+    throw new AuthServiceError('EMAIL_IN_USE', '이미 가입된 이메일이에요.')
   }
 
   const user: User = {
