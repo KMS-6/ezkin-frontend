@@ -7,8 +7,8 @@ interface OnboardingProgressProps {
 
 export function OnboardingProgress({ step }: OnboardingProgressProps) {
   return (
-    <div className="grid grid-cols-4 gap-1.5" role="progressbar" aria-label={`온보딩 ${step}단계`} aria-valuemin={1} aria-valuemax={4} aria-valuenow={step}>
-      {([1, 2, 3, 4] as const).map((value) => (
+    <div className="grid grid-cols-5 gap-1.5" role="progressbar" aria-label={`온보딩 ${step}단계`} aria-valuemin={1} aria-valuemax={5} aria-valuenow={step}>
+      {([1, 2, 3, 4, 5] as const).map((value) => (
         <span
           key={value}
           className={cn(

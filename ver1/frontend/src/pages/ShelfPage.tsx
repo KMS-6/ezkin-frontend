@@ -5,8 +5,8 @@ import { PageContainer } from '../components/PageContainer'
 import { PrimaryButton } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useAuth } from '../features/auth/authContextValue'
+import { ProductRegistrationFlow } from '../features/product-registration/components/ProductRegistrationFlow'
 import { ProductList } from '../features/shelf/components/ProductList'
-import { ProductPicker } from '../features/shelf/components/ProductPicker'
 import { ShelfSummary } from '../features/shelf/components/ShelfSummary'
 import {
   addMyProducts,
@@ -143,7 +143,7 @@ export function ShelfPage() {
       </PageContainer>
 
       {isPickerOpen && (
-        <ProductPicker
+        <ProductRegistrationFlow
           products={catalog}
           registeredIds={registeredIds}
           onClose={() => setIsPickerOpen(false)}

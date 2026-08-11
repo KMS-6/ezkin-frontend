@@ -1,7 +1,9 @@
 import type {
+  BasicProfile,
   ConnectionSettings,
   OnboardingProfile,
   OnboardingStep,
+  SkinType,
   SkinConcern,
 } from '../types/onboarding'
 
@@ -12,12 +14,19 @@ const TOKEN_KEY = 'ezkin:access-token'
 const DEMO_USER_ID = 'ezkin-demo-user'
 
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
+type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
 
 function createDefaultProfile(userId: string): OnboardingProfile {
   if (userId === DEMO_USER_ID) {
     return {
       userId,
-      currentStep: 4,
+      currentStep: 5,
+      onboardingVersion: 2,
+      nickname: 'EZkin',
+      birthYear: 1999,
+      gender: 'prefer_not_to_say',
+      healthConcerns: ['irregular_sleep'],
+      skinType: 'combination',
       selectedConcerns: ['dryness', 'sensitivity'],
       registeredProductIds: [
         'calming-toner',
@@ -35,6 +44,10 @@ function createDefaultProfile(userId: string): OnboardingProfile {
   return {
     userId,
     currentStep: 1,
+    onboardingVersion: 2,
+    gender: null,
+    healthConcerns: [],
+    skinType: 'unknown',
     selectedConcerns: [],
     registeredProductIds: [],
     lifeDataConnected: false,
@@ -42,36 +55,71 @@ function createDefaultProfile(userId: string): OnboardingProfile {
   }
 }
 
-function resolveMockProfile(userId: string, savedProfile?: OnboardingProfile): OnboardingProfile {
-  const defaultProfile = createDefaultProfile(userId)
-  if (!savedProfile || userId !== DEMO_USER_ID) return savedProfile ?? defaultProfile
+function resolveStep(savedProfile: StoredOnboardingProfile | undefined, defaultStep: OnboardingStep): OnboardingStep {
+  if (!savedProfile) return defaultStep
+  if (savedProfile.completedAt) return 5
+  if (savedProfile.onboardingVersion === 2) {
+    const step = savedProfile.currentStep ?? defaultStep
+    return Math.min(5, Math.max(1, step)) as OnboardingStep
+  }
 
-  return {
+  const legacyStep = savedProfile.currentStep ?? 1
+  if (legacyStep <= 1) return 1
+  if (legacyStep === 2) return 3
+  if (legacyStep === 3) return 4
+  return 5
+}
+
+function resolveMockProfile(userId: string, savedProfile?: StoredOnboardingProfile): OnboardingProfile {
+  const defaultProfile = createDefaultProfile(userId)
+  const resolved: OnboardingProfile = {
     ...defaultProfile,
     ...savedProfile,
-    currentStep: 4,
-    selectedConcerns: savedProfile.selectedConcerns.length > 0
+    userId,
+    currentStep: resolveStep(savedProfile, defaultProfile.currentStep),
+    onboardingVersion: 2,
+    nickname: savedProfile?.nickname?.trim() || defaultProfile.nickname,
+    birthYear: savedProfile?.birthYear ?? defaultProfile.birthYear,
+    gender: savedProfile?.gender ?? defaultProfile.gender,
+    healthConcerns: Array.isArray(savedProfile?.healthConcerns)
+      ? savedProfile.healthConcerns
+      : defaultProfile.healthConcerns,
+    skinType: savedProfile?.skinType ?? defaultProfile.skinType,
+    selectedConcerns: Array.isArray(savedProfile?.selectedConcerns)
       ? savedProfile.selectedConcerns
       : defaultProfile.selectedConcerns,
-    registeredProductIds: savedProfile.registeredProductIds.length > 0
+    registeredProductIds: Array.isArray(savedProfile?.registeredProductIds)
       ? savedProfile.registeredProductIds
       : defaultProfile.registeredProductIds,
-    lifeDataConnected: savedProfile.completedAt
-      ? savedProfile.lifeDataConnected
+  }
+
+  if (userId !== DEMO_USER_ID) return resolved
+
+  return {
+    ...resolved,
+    currentStep: 5,
+    selectedConcerns: resolved.selectedConcerns.length > 0
+      ? resolved.selectedConcerns
+      : defaultProfile.selectedConcerns,
+    registeredProductIds: resolved.registeredProductIds.length > 0
+      ? resolved.registeredProductIds
+      : defaultProfile.registeredProductIds,
+    lifeDataConnected: savedProfile?.completedAt
+      ? resolved.lifeDataConnected
       : defaultProfile.lifeDataConnected,
-    weatherConnected: savedProfile.completedAt
-      ? savedProfile.weatherConnected
+    weatherConnected: savedProfile?.completedAt
+      ? resolved.weatherConnected
       : defaultProfile.weatherConnected,
-    completedAt: savedProfile.completedAt ?? defaultProfile.completedAt,
+    completedAt: savedProfile?.completedAt ?? defaultProfile.completedAt,
   }
 }
 
-function readMockProfiles(): Record<string, OnboardingProfile> {
+function readMockProfiles(): Record<string, StoredOnboardingProfile> {
   const saved = localStorage.getItem(PROFILE_STORAGE_KEY)
   if (!saved) return {}
 
   try {
-    return JSON.parse(saved) as Record<string, OnboardingProfile>
+    return JSON.parse(saved) as Record<string, StoredOnboardingProfile>
   } catch {
     return {}
   }
@@ -127,6 +175,17 @@ export function saveCurrentStep(userId: string, currentStep: OnboardingStep): Pr
   return saveProfileUpdate(userId, { currentStep })
 }
 
+export function saveBasicProfile(
+  userId: string,
+  profile: Partial<BasicProfile>,
+): Promise<OnboardingProfile> {
+  return saveProfileUpdate(userId, profile)
+}
+
+export function saveSkinType(userId: string, skinType: SkinType): Promise<OnboardingProfile> {
+  return saveProfileUpdate(userId, { skinType })
+}
+
 export function saveConcerns(userId: string, selectedConcerns: SkinConcern[]): Promise<OnboardingProfile> {
   return saveProfileUpdate(userId, { selectedConcerns })
 }
@@ -144,7 +203,7 @@ export function saveConnectionSettings(
 
 export function completeOnboardingProfile(userId: string): Promise<OnboardingProfile> {
   return saveProfileUpdate(userId, {
-    currentStep: 4,
+    currentStep: 5,
     completedAt: new Date().toISOString(),
   })
 }

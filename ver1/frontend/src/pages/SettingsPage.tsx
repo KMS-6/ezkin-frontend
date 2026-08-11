@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Activity,
+  CalendarDays,
   Check,
   ChevronRight,
   CloudSun,
+  Droplets,
   LogOut,
   Package,
   RefreshCw,
@@ -122,13 +124,38 @@ function ProfileSettings({ profile }: { profile: OnboardingProfile }) {
   const concernLabels = concernOptions
     .filter((option) => profile.selectedConcerns.includes(option.id))
     .map((option) => option.label)
+  const skinTypeLabels = {
+    dry: '건성',
+    oily: '지성',
+    combination: '복합성',
+    normal: '중성',
+    unknown: '잘 모르겠어요',
+  }
+  const basicProfileLabel = [
+    profile.nickname || '닉네임 미설정',
+    profile.birthYear ? `${profile.birthYear}년생` : null,
+  ].filter(Boolean).join(' · ')
 
   return (
     <>
       <section className="mt-7">
         <h2 className="text-[16px] font-bold text-ez-text">내 케어 기준</h2>
         <Card className="mt-3 overflow-hidden">
-          <div className="flex items-start gap-3 px-4 py-4">
+          <div className="flex items-start gap-3 px-4 py-3.5">
+            <CalendarDays size={17} className="mt-0.5 shrink-0 text-ez-primary" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-[12px] font-medium text-ez-muted">기본 프로필</p>
+              <p className="mt-1 text-[14px] font-semibold leading-5 text-ez-text">{basicProfileLabel}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 border-t border-ez-border/70 px-4 py-3.5">
+            <Droplets size={17} className="mt-0.5 shrink-0 text-ez-primary" aria-hidden="true" />
+            <div className="min-w-0">
+              <p className="text-[12px] font-medium text-ez-muted">평소 피부 타입</p>
+              <p className="mt-1 text-[14px] font-semibold leading-5 text-ez-text">{skinTypeLabels[profile.skinType]}</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 border-t border-ez-border/70 px-4 py-3.5">
             <Sparkles size={17} className="mt-0.5 shrink-0 text-ez-primary" aria-hidden="true" />
             <div className="min-w-0">
               <p className="text-[12px] font-medium text-ez-muted">신경 쓰이는 피부 고민</p>

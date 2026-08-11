@@ -20,11 +20,11 @@ import type {
   ProductImageSource,
   RecognitionCandidate,
 } from '../../../types/productRecognition'
-import { ProductSelector } from '../../onboarding/components/ProductSelector'
+import { ProductSelector } from './ProductSelector'
 import { ProductCameraCapture } from './ProductCameraCapture'
 import { ProductCameraFrame } from './ProductCameraFrame'
 
-interface ProductPickerProps {
+interface ProductRegistrationFlowProps {
   products: Product[]
   registeredIds: string[]
   onClose: () => void
@@ -43,7 +43,12 @@ const stepTitles: Record<ProductAddStep, string> = {
   complete: '제품 추가',
 }
 
-export function ProductPicker({ products, registeredIds, onClose, onAdd }: ProductPickerProps) {
+export function ProductRegistrationFlow({
+  products,
+  registeredIds,
+  onClose,
+  onAdd,
+}: ProductRegistrationFlowProps) {
   const [step, setStep] = useState<ProductAddStep>('intro')
   const [capturedImage, setCapturedImage] = useState<Blob | File | null>(null)
   const [imageSource, setImageSource] = useState<ProductImageSource>('camera')
@@ -179,7 +184,7 @@ export function ProductPicker({ products, registeredIds, onClose, onAdd }: Produ
   const canGoBack = !['intro', 'analyzing', 'complete'].includes(step)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#21182f]/20 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="product-picker-title">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#21182f]/20 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="product-registration-title">
       <div className="max-h-[90dvh] w-full max-w-[430px] overflow-y-auto rounded-t-[28px] bg-ez-bg px-5 pb-[max(22px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_35px_rgba(35,24,55,0.12)] sm:mb-4 sm:rounded-[28px]">
         <div className="sticky top-0 z-10 flex min-h-11 items-center justify-between bg-ez-bg/95 pb-2 backdrop-blur">
           <div className="flex min-w-0 items-center gap-1">
@@ -188,7 +193,7 @@ export function ProductPicker({ products, registeredIds, onClose, onAdd }: Produ
                 <ChevronLeft size={19} aria-hidden="true" />
               </button>
             )}
-            <h2 id="product-picker-title" className="truncate text-[18px] font-bold text-ez-text">
+            <h2 id="product-registration-title" className="truncate text-[18px] font-bold text-ez-text">
               {stepTitles[step]}
             </h2>
           </div>

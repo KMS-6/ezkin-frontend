@@ -47,7 +47,7 @@ export const demoTriggerAnalysis: TriggerAnalysis = {
     {
       id: 'timeline-sleep',
       offsetLabel: 'D-3',
-      dateLabel: '화요일',
+      dateLabel: '월요일',
       label: '수면',
       value: '4h 40m',
       description: '평소보다 짧았어요.',
@@ -56,7 +56,7 @@ export const demoTriggerAnalysis: TriggerAnalysis = {
     {
       id: 'timeline-humidity',
       offsetLabel: 'D-2',
-      dateLabel: '수요일',
+      dateLabel: '화요일',
       label: '습도',
       value: '24%',
       description: '건조한 공기가 이어졌어요.',

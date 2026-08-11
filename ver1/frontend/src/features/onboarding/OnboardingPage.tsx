@@ -2,24 +2,29 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
+import { addMyProducts } from '../../services/productService'
 import { useAuth } from '../auth/authContextValue'
 import {
   completeOnboardingProfile,
   getOnboardingProfile,
+  saveBasicProfile,
   saveConcerns,
   saveConnectionSettings,
   saveCurrentStep,
-  saveProducts,
+  saveSkinType,
 } from '../../services/onboardingService'
 import type {
+  BasicProfile,
   OnboardingProfile,
   OnboardingStep,
   SkinConcern,
+  SkinType,
 } from '../../types/onboarding'
 import { OnboardingProgress } from './components/OnboardingProgress'
-import { ConcernsStep } from './steps/ConcernsStep'
 import { ConnectionStep } from './steps/ConnectionStep'
+import { ProfileStep } from './steps/ProfileStep'
 import { ShelfStep } from './steps/ShelfStep'
+import { SkinStep } from './steps/SkinStep'
 import { WelcomeStep } from './steps/WelcomeStep'
 
 export function OnboardingPage() {
@@ -84,13 +89,26 @@ export function OnboardingPage() {
     persist(saveConcerns(user.id, selectedConcerns))
   }
 
-  const handleProductToggle = (productId: string) => {
-    const registeredProductIds = profile.registeredProductIds.includes(productId)
-      ? profile.registeredProductIds.filter((id) => id !== productId)
-      : [...profile.registeredProductIds, productId]
+  const handleBasicProfileChange = (update: Partial<BasicProfile>) => {
+    setProfile({ ...profile, ...update })
+    persist(saveBasicProfile(user.id, update))
+  }
 
-    setProfile({ ...profile, registeredProductIds })
-    persist(saveProducts(user.id, registeredProductIds))
+  const handleSkinTypeChange = (skinType: SkinType) => {
+    setProfile({ ...profile, skinType })
+    persist(saveSkinType(user.id, skinType))
+  }
+
+  const handleAddProducts = async (productIds: string[]) => {
+    setSaveMessage(null)
+    try {
+      const products = await addMyProducts(user.id, productIds)
+      setProfile({ ...profile, registeredProductIds: products.map((product) => product.id) })
+      return true
+    } catch {
+      setSaveMessage('제품을 추가하지 못했어요. 한 번만 다시 시도해주세요.')
+      return false
+    }
   }
 
   const handleConnectionToggle = (type: 'life' | 'weather') => {
@@ -153,21 +171,33 @@ export function OnboardingPage() {
       <main className="flex min-h-[calc(100dvh-92px)] flex-1 flex-col px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-7 sm:min-h-[calc(100vh-124px)]">
         {profile.currentStep === 1 && <WelcomeStep onNext={() => moveToStep(2)} />}
         {profile.currentStep === 2 && (
-          <ConcernsStep
-            selectedConcerns={profile.selectedConcerns}
-            limitMessage={limitMessage}
-            onToggle={handleConcernToggle}
+          <ProfileStep
+            nickname={profile.nickname}
+            birthYear={profile.birthYear}
+            gender={profile.gender}
+            healthConcerns={profile.healthConcerns}
+            onChange={handleBasicProfileChange}
             onNext={() => moveToStep(3)}
           />
         )}
         {profile.currentStep === 3 && (
-          <ShelfStep
-            selectedProductIds={profile.registeredProductIds}
-            onToggleProduct={handleProductToggle}
+          <SkinStep
+            skinType={profile.skinType}
+            selectedConcerns={profile.selectedConcerns}
+            limitMessage={limitMessage}
+            onSkinTypeChange={handleSkinTypeChange}
+            onConcernToggle={handleConcernToggle}
             onNext={() => moveToStep(4)}
           />
         )}
         {profile.currentStep === 4 && (
+          <ShelfStep
+            selectedProductIds={profile.registeredProductIds}
+            onAddProducts={handleAddProducts}
+            onNext={() => moveToStep(5)}
+          />
+        )}
+        {profile.currentStep === 5 && (
           <ConnectionStep
             lifeDataConnected={profile.lifeDataConnected}
             weatherConnected={profile.weatherConnected}
