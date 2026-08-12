@@ -333,9 +333,10 @@ AI가 제품을 찾지 못하는 경우에만
 
 ### 현재 구현 상태
 
-- Camera-first UI
-- 제품 촬영 UI
-- 이미지 선택 UI
+- Camera-first UX
+- `facingMode: environment` 실제 Rear Camera와 Permission/Error 처리
+- Canvas JPEG Blob Capture, 실제 이미지 Preview / 다시 찍기
+- 이미지 파일 선택과 Object URL cleanup
 - Recognition 상태 UI
 - 단일 제품 확인
 - 후보 제품 선택
@@ -371,32 +372,42 @@ Route:
 /scan
 ```
 
-현재 Frontend 2 연결을 위한 Scan UI가 준비되어 있습니다.
+실제 모바일 Camera 촬영 Flow가 구현되어 있습니다.
 
-### 현재 UI
+### 현재 구현
 
-- Face Guide
-- Scan Frame
-- 자연광 촬영 안내
-- Scan CTA
+- `facingMode: user` Front Camera와 Permission/Error 처리
+- 3초 Countdown, Canvas JPEG Blob Capture
+- 실제 촬영 이미지 Preview / 다시 찍기
+- `analyzeSkin(image)` Mock 분석과 Result UI
+- MediaStream / Object URL cleanup
+- 분석 실패와 Camera Permission 실패 상태 분리
 
-실제 피부 분석 AI는 아직 연결하지 않았습니다.
+실제 피부 분석 API는 아직 연결하지 않았습니다. 촬영 이미지와 결과는 Session State에만 있으며
+localStorage 또는 별도 Frontend History에 저장하지 않습니다.
 
-### Frontend 2 연결 지점
-
-```text
-src/features/scan/
-```
-
-주요 Component:
+### Backend 연결 지점
 
 ```text
-ScanFrame
-ScanAction
+src/services/skinScanService.ts
 ```
 
-Frontend 2에서는 이 UI를 유지하면서
-실제 Camera / 촬영 / Preview / 분석 Flow를 연결합니다.
+`analyzeSkin(image: Blob | File)` 내부의 Mock 분기만 multipart API 요청으로 교체합니다.
+Backend 1은 Scan Result와 History 저장/조회를 담당하고, Backend 2는 저장된 피부 데이터를
+위험도와 추천 계산에 사용할 수 있습니다.
+
+Result Contract:
+
+```text
+SkinScanResult {
+  id
+  capturedAt
+  overallStatus
+  observedAreas
+  summary
+  recommendation
+}
+```
 
 ---
 
@@ -465,7 +476,27 @@ Route:
 /sos
 ```
 
-현재 Frontend 2 연결을 위한 최소 UI만 구현되어 있습니다.
+현재 Frontend에는 세션형 SOS Chat UI가 구현되어 있습니다.
+
+- 첫 화면 Quick Question
+- 직접 질문 입력 및 전송
+- 사용자별 Profile / Today Life Log / Weather / 식단 / 보유 제품 Context 조합
+- Mock 답변, Loading, Error, 동일 질문 Retry
+- 새로고침 시 초기화되는 Session State 대화
+
+Frontend는 Claude API를 직접 호출하지 않습니다. `src/services/sosService.ts`가 아래 계약만 담당하며,
+실제 추천·위험도·의료 Safety 로직은 Backend 2의 책임입니다.
+
+```text
+POST /sos/chat
+
+Request:  { message, context }
+Response: { message, safetyLevel? }
+```
+
+Context는 `src/services/sosContextService.ts`가 기존 Service 결과를 조합합니다.
+현재 Scan 결과는 Session State에만 존재하므로 포함하지 않으며, Backend 1의 사용자별 Scan History API가 제공되면
+`latestScan` 필드를 같은 Service에서 연결합니다.
 
 향후:
 
@@ -573,6 +604,9 @@ src/services/lifeLogService.ts
 src/services/productService.ts
 src/services/productRecognitionService.ts
 src/services/analysisService.ts
+src/services/sosContextService.ts
+src/services/sosService.ts
+src/services/healthConnectionService.ts
 ```
 
 ## 역할
@@ -640,6 +674,32 @@ Product Image
 ```
 
 현재 Recognition 결과는 Mock입니다.
+
+---
+
+### sosContextService / sosService
+
+```text
+Existing User Services
+→ SOSContext
+→ POST /sos/chat
+→ Message + optional safetyLevel
+```
+
+현재 답변은 Mock이며 대화 내용은 Session State에만 유지합니다.
+
+---
+
+### healthConnectionService
+
+```text
+getHealthConnection(userId)
+connectHealthData(userId)
+disconnectHealthData(userId)
+```
+
+현재는 사용자별 `lifeDataConnected`를 사용하는 Demo 연결입니다. Component는 Profile 저장소나
+브라우저 Permission API를 직접 다루지 않습니다.
 
 ---
 
@@ -806,7 +866,10 @@ src/services/productRecognitionService.ts
 /sos
 ```
 
-현재 Placeholder UI를 실제 Chat UI 및 API와 연결
+현재 Chat UI와 Mock Service가 구현되어 있습니다.
+
+Backend 2에서는 `POST /sos/chat`에 실제 Claude 응답 생성, 추천, 위험도 및 Safety 처리를 연결합니다.
+Frontend에는 Claude API Key나 Anthropic SDK를 추가하지 않습니다.
 
 ---
 
@@ -824,12 +887,181 @@ Home / Briefing / Life Log가
 
 ### 5. Wearable
 
-현재 수면 / 걸음 / 생활 리듬은 Mock입니다.
+현재 구현:
 
-웹앱 구조에서는 Apple HealthKit을 브라우저에서 직접 읽을 수 없으므로
-실제 연동 방식은 별도 설계가 필요합니다.
+- Web Connection UX와 Permission 상태 표현
+- 사용자별 Connection State
+- Demo 수면 / 걸음 / HRV / 운동량 연결 안내
+- 연결·해제 후 Life Log 및 Settings 상태 동기화
+- Native Connector용 TypeScript interface
 
-Frontend에서는 현재 Mock Data interface를 유지합니다.
+미구현:
+
+- 실제 Apple HealthKit Read
+- Swift / iOS Native Connector
+- 실제 Health Data 전송
+
+React Web App은 HealthKit이나 존재하지 않는 브라우저 Health Permission API를 호출하지 않습니다.
+
+향후 연결 경계:
+
+```text
+Apple Health
+→ iOS Native Connector
+→ Backend 1
+→ DB / Frontend API
+→ EZkin Web
+```
+
+Backend 2는 전달된 생활·피부·환경·제품 데이터를 이용해 위험도와 Recommendation을 계산합니다.
+Frontend는 해당 계산을 구현하지 않습니다.
+
+---
+
+## Frontend 2 Final Integration Handoff
+
+### 구현 / 미연결 범위
+
+| 영역 | Frontend 현재 상태 | Backend/Native 연결 필요 |
+|---|---|---|
+| Skin Scan | 실제 Camera·Capture·Preview, Mock 분석 | 실제 분석 API, Scan History |
+| Product Registration | 실제 Rear Camera·Upload·Preview, Mock 후보 확인 | Vision/OCR/Product Identification |
+| SOS | Chat·Context·Loading·Retry, Mock 답변 | Claude·Safety·추천·위험도 |
+| Health | 연결/해제 UX, Permission State, Demo 데이터 | iOS HealthKit Connector, 수신/저장 API |
+| Weather/Life Log | Service 기반 Mock 표시 | 실제 Weather/Life Log API |
+| Recommendation/Analysis | Backend 결과용 UI와 Type | 실제 추천 및 Trigger 계산 |
+
+모든 Service는 `VITE_USE_MOCK_API`를 기준으로 전환합니다.
+
+```text
+true  -> Mock
+false -> VITE_API_BASE_URL 기반 Backend 요청
+```
+
+Page와 Component에는 Backend URL, `fetch()`, AI Key를 두지 않습니다.
+
+### Session-only / 저장 데이터
+
+현재 새로고침 시 사라지는 것이 정상인 데이터:
+
+- Skin Captured Image와 Scan Result
+- Product Captured/Selected Image와 Recognition 진행 상태
+- SOS Conversation
+- Camera MediaStream과 Object URL
+
+Frontend는 얼굴/제품 이미지, SOS 대화, Health 원시 데이터를 localStorage에 저장하지 않습니다.
+Mock Auth만 Demo 검증을 위해 비밀번호를 localStorage에 저장하며 실제 인증에서는 Backend가 자격 증명을 관리해야 합니다.
+Claude/Anthropic API Key 또는 다른 API Secret은 Frontend에 없습니다.
+
+### SOS Context 책임
+
+현재 Demo에서는 `sosContextService`가 Profile, Today Skin, Life Log, Weather, Food QuickChoice,
+사용자 보유 제품을 조합합니다. 실제 서비스에서는 인증된 사용자를 기준으로 Backend 1/2가 필요한 Context만
+서버에서 조회해 구성하는 방식을 권장합니다. Frontend가 민감한 건강 데이터 전체를 매 요청마다 보내는 Contract로
+고정하지 않습니다.
+
+### Backend 1 Handoff
+
+| 책임 | Frontend 연결 Service |
+|---|---|
+| Auth / Current User | `authService.ts` |
+| Onboarding Profile / Connection State | `onboardingService.ts`, `healthConnectionService.ts` |
+| Today Briefing / QuickChoice | `briefingService.ts` |
+| Life Log / Weather / Health Data 조회 | `lifeLogService.ts` |
+| Skin Data 저장 / Scan History | `skinScanService.ts` 및 향후 History Service |
+| Product Catalog / User Products 저장 | `productService.ts` |
+| Frontend용 분석 결과 조회 | `analysisService.ts` |
+
+Health 데이터 흐름:
+
+```text
+Apple Health -> iOS Native Connector -> Backend 1 -> DB -> Frontend API
+```
+
+FastAPI가 Apple Health를 직접 읽는다고 가정하지 않습니다.
+
+### Backend 2 Handoff
+
+| 책임 | Frontend 연결 Service |
+|---|---|
+| Skin Risk / Today Recommendation | `briefingService.ts`, `productService.ts` |
+| Product Vision/OCR 후보 생성 | `productRecognitionService.ts` |
+| My Shelf 처방 | `productService.ts` |
+| SOS Claude / Safety | `sosService.ts` |
+| Trigger Analysis 계산 | `analysisService.ts` |
+
+Frontend는 HRV, 수면, 피부 상태로 위험도나 추천을 계산하지 않습니다.
+
+### API Contract 초안
+
+아래 경로는 Backend 협의를 위한 초안이며 확정 Endpoint가 아닙니다. URL은 각 Service 내부에서만 관리합니다.
+
+#### Skin Scan
+
+```text
+POST /skin-scans/analyze
+Content-Type: multipart/form-data
+Request:  image: Blob | File
+Response: SkinScanResult
+```
+
+#### Product Recognition / User Product
+
+```text
+POST /products/recognize
+Request:  multipart image
+Response: { status: "match", candidate }
+       |  { status: "candidates", candidates[1..3] }
+       |  { status: "not_found", candidates: [] }
+
+POST /users/me/products
+Request:  { productIds: string[] }
+Response: Product[]
+```
+
+Recognition은 후보 생성, User Product API는 사용자 확인 후 저장을 담당합니다.
+
+#### SOS
+
+```text
+POST /sos/chat
+Request:  { message, context? }
+Response: { message, safetyLevel?: "normal" | "caution" | "urgent" }
+```
+
+실제 환경에서는 Backend가 인증 사용자 Context를 서버에서 구성할 수 있습니다.
+
+#### Health Connection / Health Data
+
+```text
+GET    /users/me/health-connection -> HealthConnection
+POST   /users/me/health-connection -> HealthConnection
+DELETE /users/me/health-connection -> HealthConnection
+
+POST /health-data/snapshots
+Request: HealthDataSnapshot
+Response: accepted/collectedAt
+```
+
+Snapshot POST의 호출 주체는 Web이 아니라 향후 Native Connector입니다.
+
+#### Today Briefing / Life Log
+
+```text
+GET  /briefing       -> BriefingData (오늘 저장된 dietChoice? 포함)
+GET  /life-logs/today -> TodayLifeLog
+POST /lifelog/diet   { choice: "usual" | "spicy" }
+```
+
+#### Recommendation / Trigger Analysis
+
+```text
+GET /recommendations/today -> TodayProductRecommendation[]
+GET /analysis/eligibility  -> AnalysisEligibility
+GET /analysis/triggers     -> TriggerAnalysis
+```
+
+401/403/404/422/500 및 Network Error는 Service에서 실패로 변환하고, 기존 UI의 Loading/Error/Retry 경계가 처리합니다.
 
 ---
 
@@ -850,6 +1082,7 @@ Trigger Analysis
 SOS AI
 Product Recognition
 Skin Scan
+Health Connection / Health Data Ingestion
 ```
 
 Frontend가 특정 Endpoint URL에 강하게 의존하지 않도록
@@ -1011,7 +1244,9 @@ EZkin은 의료 서비스가 아닙니다.
 | 사용자별 Profile 저장 | LocalStorage |
 | Home / Briefing UI | 실제 |
 | Life Log UI | 실제 |
-| Wearable Data | Mock |
+| Health Connection UX | 구현 |
+| Wearable Data | Demo Mock |
+| Apple HealthKit Read / Native Connector | 미구현 |
 | Weather Data | Mock |
 | My Shelf | 실제 Frontend |
 | Product Recommendation | Mock |
@@ -1022,7 +1257,7 @@ EZkin은 의료 서비스가 아닙니다.
 | Trigger Analysis UI | 구현 |
 | Trigger Analysis Data | Mock |
 | Settings | 구현 |
-| SOS UI | Placeholder |
+| SOS UI | 구현 |
 | SOS AI | 미연결 |
 
 ---
