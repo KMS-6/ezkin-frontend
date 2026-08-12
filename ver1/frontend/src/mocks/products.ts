@@ -8,7 +8,7 @@ export const productCatalog: Product[] = [
     category: 'toner',
     categoryLabel: '토너',
     ingredients: ['센텔라', '판테놀'],
-    usage: '세안 후 피부에 가볍게 흡수시켜요.',
+    usage: '세안 후 피부에 가볍게 흡수시켜요',
   },
   {
     id: 'hyaluronic-serum',
@@ -17,7 +17,7 @@ export const productCatalog: Product[] = [
     category: 'serum',
     categoryLabel: '세럼',
     ingredients: ['히알루론산', '베타글루칸'],
-    usage: '토너 다음 단계에서 부드럽게 펴 발라요.',
+    usage: '토너 다음 단계에서 부드럽게 펴 발라요',
   },
   {
     id: 'ceramide-cream',
@@ -26,7 +26,7 @@ export const productCatalog: Product[] = [
     category: 'cream',
     categoryLabel: '크림',
     ingredients: ['세라마이드', '스쿠알란'],
-    usage: '루틴 마지막에 피부를 감싸듯 발라요.',
+    usage: '루틴 마지막에 피부를 감싸듯 발라요',
   },
   {
     id: 'retinol-serum',
@@ -35,7 +35,7 @@ export const productCatalog: Product[] = [
     category: 'serum',
     categoryLabel: '세럼',
     ingredients: ['레티놀', '펩타이드'],
-    usage: '저녁 루틴에서 소량 사용해요.',
+    usage: '저녁 루틴에서 소량 사용해요',
   },
   {
     id: 'vitamin-c-ampoule',
@@ -44,7 +44,7 @@ export const productCatalog: Product[] = [
     category: 'serum',
     categoryLabel: '앰플',
     ingredients: ['비타민 C', '토코페롤'],
-    usage: '토너 다음 단계에서 소량 펴 발라요.',
+    usage: '토너 다음 단계에서 소량 펴 발라요',
   },
   {
     id: 'spf50-sunscreen',
@@ -53,6 +53,6 @@ export const productCatalog: Product[] = [
     category: 'sunscreen',
     categoryLabel: '선케어',
     ingredients: ['SPF50+', '판테놀'],
-    usage: '아침 외출 전 얼굴에 고르게 발라요.',
+    usage: '아침 외출 전 얼굴에 고르게 발라요',
   },
 ]

@@ -20,8 +20,15 @@ import { SecondaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
+import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
 import { concernOptions } from '../mocks/onboarding'
+import {
+  connectHealthData,
+  disconnectHealthData,
+  getHealthConnection,
+} from '../services/healthConnectionService'
 import { getOnboardingProfile } from '../services/onboardingService'
+import type { HealthConnection } from '../types/healthConnection'
 import type { OnboardingProfile } from '../types/onboarding'
 
 export function SettingsPage() {
@@ -31,6 +38,10 @@ export function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [healthConnection, setHealthConnection] = useState<HealthConnection | null>(null)
+  const [isHealthSheetOpen, setIsHealthSheetOpen] = useState(false)
+  const [isUpdatingHealth, setIsUpdatingHealth] = useState(false)
+  const [healthError, setHealthError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async () => {
     if (!user) return
@@ -38,7 +49,12 @@ export function SettingsPage() {
     setHasError(false)
 
     try {
-      setProfile(await getOnboardingProfile(user.id))
+      const [nextProfile, nextHealthConnection] = await Promise.all([
+        getOnboardingProfile(user.id),
+        getHealthConnection(user.id),
+      ])
+      setProfile(nextProfile)
+      setHealthConnection(nextHealthConnection)
     } catch {
       setHasError(true)
     } finally {
@@ -58,6 +74,41 @@ export function SettingsPage() {
       navigate('/login', { replace: true })
     } finally {
       setIsLoggingOut(false)
+    }
+  }
+
+  const handleHealthConnect = async () => {
+    if (!user || isUpdatingHealth) return
+    setIsUpdatingHealth(true)
+    setHealthError(null)
+    setHealthConnection((current) => current ? { ...current, status: 'requesting' } : current)
+
+    try {
+      const connection = await connectHealthData(user.id)
+      setHealthConnection(connection)
+      setProfile((current) => current ? { ...current, lifeDataConnected: true } : current)
+    } catch {
+      setHealthConnection((current) => current ? { ...current, status: 'denied' } : current)
+      setHealthError('지금은 연결하지 않아도 괜찮아요. 나중에 다시 시도할 수 있어요.')
+    } finally {
+      setIsUpdatingHealth(false)
+    }
+  }
+
+  const handleHealthDisconnect = async () => {
+    if (!user || isUpdatingHealth) return
+    setIsUpdatingHealth(true)
+    setHealthError(null)
+
+    try {
+      const connection = await disconnectHealthData(user.id)
+      setHealthConnection(connection)
+      setProfile((current) => current ? { ...current, lifeDataConnected: false } : current)
+      setIsHealthSheetOpen(false)
+    } catch {
+      setHealthError('연결을 끊지 못했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsUpdatingHealth(false)
     }
   }
 
@@ -93,7 +144,13 @@ export function SettingsPage() {
             </div>
           </Card>
         ) : (
-          <ProfileSettings profile={profile} />
+          <ProfileSettings
+            profile={profile}
+            onOpenHealthConnection={() => {
+              setHealthError(null)
+              setIsHealthSheetOpen(true)
+            }}
+          />
         )}
 
         <div className="mt-5">
@@ -116,11 +173,28 @@ export function SettingsPage() {
           로그아웃해도 내 정보는 유지돼요.
         </p>
       </PageContainer>
+
+      {isHealthSheetOpen && healthConnection && (
+        <HealthConnectionSheet
+          connection={healthConnection}
+          isBusy={isUpdatingHealth}
+          error={healthError}
+          onClose={() => setIsHealthSheetOpen(false)}
+          onConnect={() => void handleHealthConnect()}
+          onDisconnect={() => void handleHealthDisconnect()}
+        />
+      )}
     </>
   )
 }
 
-function ProfileSettings({ profile }: { profile: OnboardingProfile }) {
+function ProfileSettings({
+  profile,
+  onOpenHealthConnection,
+}: {
+  profile: OnboardingProfile
+  onOpenHealthConnection: () => void
+}) {
   const concernLabels = concernOptions
     .filter((option) => profile.selectedConcerns.includes(option.id))
     .map((option) => option.label)
@@ -184,8 +258,9 @@ function ProfileSettings({ profile }: { profile: OnboardingProfile }) {
           <ConnectionStatusRow
             icon={<Activity size={17} aria-hidden="true" />}
             title="생활 데이터"
-            description="수면 · 활동 · 생활 리듬"
+            description={profile.lifeDataConnected ? '수면 · 활동 · HRV' : '연결하면 매일 입력하지 않아도 돼요'}
             connected={profile.lifeDataConnected}
+            onClick={onOpenHealthConnection}
           />
           <ConnectionStatusRow
             icon={<CloudSun size={17} aria-hidden="true" />}
@@ -204,14 +279,16 @@ function ConnectionStatusRow({
   title,
   description,
   connected,
+  onClick,
 }: {
   icon: ReactNode
   title: string
   description: string
   connected: boolean
+  onClick?: () => void
 }) {
-  return (
-    <div className="flex min-h-[68px] items-center gap-3 px-4 py-3 [&+&]:border-t [&+&]:border-ez-border/70">
+  const content = (
+    <>
       <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
         {icon}
       </span>
@@ -222,7 +299,18 @@ function ConnectionStatusRow({
       <span className={connected ? 'inline-flex items-center gap-1 text-[11px] font-semibold text-ez-success' : 'text-[11px] font-medium text-ez-muted'}>
         {connected && <Check size={12} strokeWidth={2.5} aria-hidden="true" />}
         {connected ? '연결됨' : '연결 안 함'}
+        {onClick && <ChevronRight size={14} aria-hidden="true" />}
       </span>
+    </>
+  )
+
+  return onClick ? (
+    <button type="button" onClick={onClick} className="flex min-h-[68px] w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-ez-primary-soft/35 [&+&]:border-t [&+&]:border-ez-border/70">
+      {content}
+    </button>
+  ) : (
+    <div className="flex min-h-[68px] items-center gap-3 px-4 py-3 [&+&]:border-t [&+&]:border-ez-border/70">
+      {content}
     </div>
   )
 }

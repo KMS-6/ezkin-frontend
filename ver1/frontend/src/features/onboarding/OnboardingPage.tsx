@@ -3,6 +3,7 @@ import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
 import { addMyProducts } from '../../services/productService'
+import { connectHealthData } from '../../services/healthConnectionService'
 import { useAuth } from '../auth/authContextValue'
 import {
   completeOnboardingProfile,
@@ -20,6 +21,7 @@ import type {
   SkinConcern,
   SkinType,
 } from '../../types/onboarding'
+import type { HealthPermissionStatus } from '../../types/healthConnection'
 import { OnboardingProgress } from './components/OnboardingProgress'
 import { ConnectionStep } from './steps/ConnectionStep'
 import { ProfileStep } from './steps/ProfileStep'
@@ -35,6 +37,7 @@ export function OnboardingPage() {
   const [limitMessage, setLimitMessage] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [healthConnectionStatus, setHealthConnectionStatus] = useState<HealthPermissionStatus>('not_requested')
 
   useEffect(() => {
     if (!user) return
@@ -42,7 +45,10 @@ export function OnboardingPage() {
 
     void getOnboardingProfile(user.id)
       .then((savedProfile) => {
-        if (isActive) setProfile(savedProfile)
+        if (isActive) {
+          setProfile(savedProfile)
+          setHealthConnectionStatus(savedProfile.lifeDataConnected ? 'connected' : 'not_requested')
+        }
       })
       .catch(() => {
         if (isActive) setLoadError('온보딩 정보를 불러오지 못했어요.')
@@ -111,18 +117,29 @@ export function OnboardingPage() {
     }
   }
 
-  const handleConnectionToggle = (type: 'life' | 'weather') => {
+  const handleWeatherToggle = () => {
     const settings = {
-      lifeDataConnected: type === 'life'
-        ? !profile.lifeDataConnected
-        : profile.lifeDataConnected,
-      weatherConnected: type === 'weather'
-        ? !profile.weatherConnected
-        : profile.weatherConnected,
+      lifeDataConnected: profile.lifeDataConnected,
+      weatherConnected: !profile.weatherConnected,
     }
 
     setProfile({ ...profile, ...settings })
     persist(saveConnectionSettings(user.id, settings))
+  }
+
+  const handleLifeDataConnect = async () => {
+    if (healthConnectionStatus === 'requesting' || profile.lifeDataConnected) return
+    setHealthConnectionStatus('requesting')
+    setSaveMessage(null)
+
+    try {
+      const connection = await connectHealthData(user.id)
+      setHealthConnectionStatus(connection.status)
+      setProfile({ ...profile, lifeDataConnected: connection.status === 'connected' || connection.status === 'limited' })
+    } catch {
+      setHealthConnectionStatus('denied')
+      setSaveMessage('지금은 연결하지 않아도 괜찮아요. 나중에 다시 시도할 수 있어요.')
+    }
   }
 
   const handleComplete = async () => {
@@ -201,9 +218,10 @@ export function OnboardingPage() {
           <ConnectionStep
             lifeDataConnected={profile.lifeDataConnected}
             weatherConnected={profile.weatherConnected}
+            healthConnectionStatus={healthConnectionStatus}
             isCompleting={isCompleting}
-            onToggleLifeData={() => handleConnectionToggle('life')}
-            onToggleWeather={() => handleConnectionToggle('weather')}
+            onConnectLifeData={() => void handleLifeDataConnect()}
+            onToggleWeather={handleWeatherToggle}
             onComplete={handleComplete}
           />
         )}

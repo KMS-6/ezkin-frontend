@@ -88,11 +88,17 @@ export async function getTodayProductRecommendations(
     ? todayProductRecommendations
     : await request<TodayProductRecommendation[]>('/recommendations/today')
 
-  return products.map((product) => ({
-    product,
-    recommendation: recommendations.find((item) => item.productId === product.id)
-      ?? getMockRecommendation(product.id),
-  }))
+  return products.map((product) => {
+    const recommendation = recommendations.find((item) => item.productId === product.id)
+    if (!recommendation && !USE_MOCK_API) {
+      throw new Error('제품 추천 응답이 완전하지 않아요.')
+    }
+
+    return {
+      product,
+      recommendation: recommendation ?? getMockRecommendation(product.id),
+    }
+  })
 }
 
 const categoryOrder: Record<Product['category'], number> = {

@@ -45,6 +45,7 @@ export function HomePage() {
       if (!isActive) return
       setBriefing(briefingData)
       setTodayRoutine(routineData)
+      if (briefingData.dietChoice) setDietChoice(briefingData.dietChoice)
     }).catch(() => {
       if (isActive) setLoadError(true)
     })

@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { Activity, ArrowRight, Check, CloudSun, LoaderCircle, Sparkles } from 'lucide-react'
+import { ArrowRight, Check, CloudSun, LoaderCircle, Sparkles } from 'lucide-react'
 import { PrimaryButton } from '../../../components/ui/Button'
+import { HealthConnectionCard } from '../../health/components/HealthConnectionCard'
+import type { HealthPermissionStatus } from '../../../types/healthConnection'
 import type { ConnectionSettings } from '../../../types/onboarding'
 import { ConnectionItem } from '../components/ConnectionItem'
 import { OnboardingStepLayout } from '../components/OnboardingStepLayout'
 
 interface ConnectionStepProps extends ConnectionSettings {
+  healthConnectionStatus: HealthPermissionStatus
   isCompleting: boolean
-  onToggleLifeData: () => void
+  onConnectLifeData: () => void
   onToggleWeather: () => void
   onComplete: () => void
 }
@@ -15,8 +18,9 @@ interface ConnectionStepProps extends ConnectionSettings {
 export function ConnectionStep({
   lifeDataConnected,
   weatherConnected,
+  healthConnectionStatus,
   isCompleting,
-  onToggleLifeData,
+  onConnectLifeData,
   onToggleWeather,
   onComplete,
 }: ConnectionStepProps) {
@@ -59,7 +63,7 @@ export function ConnectionStep({
   return (
     <OnboardingStepLayout
       eyebrow="입력할 일을 줄여드릴게요"
-      title="매일 물어보지 않도록 연결할게요."
+      title="생활 데이터는 알아서 가져올게요."
       footer={
         <div className="space-y-2">
           <p className="text-center text-[11px] font-normal text-ez-muted">
@@ -75,13 +79,9 @@ export function ConnectionStep({
       }
     >
       <div className="space-y-3">
-        <ConnectionItem
-          icon={<Activity size={19} aria-hidden="true" />}
-          title="생활 데이터"
-          dataLabel="수면 · 활동 · 생활 리듬"
-          description="연결하면 직접 기록하지 않아도 돼요."
-          connected={lifeDataConnected}
-          onToggle={onToggleLifeData}
+        <HealthConnectionCard
+          status={lifeDataConnected ? 'connected' : healthConnectionStatus}
+          onConnect={onConnectLifeData}
         />
         <ConnectionItem
           icon={<CloudSun size={19} aria-hidden="true" />}

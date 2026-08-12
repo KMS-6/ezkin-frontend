@@ -37,6 +37,7 @@ export interface BriefingData {
   metrics: BriefingMetric[]
   syncedSources: string[]
   syncedCount: number
+  dietChoice?: DietChoice
 }
 
 export type DietChoice = 'usual' | 'spicy'
