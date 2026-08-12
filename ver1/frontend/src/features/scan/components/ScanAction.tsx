@@ -2,11 +2,18 @@ import { Camera } from 'lucide-react'
 import { PrimaryButton } from '../../../components/ui/Button'
 
 interface ScanActionProps {
-  isPlaceholderVisible: boolean
   onStart: () => void
+  disabled?: boolean
+  label?: string
+  status?: string
 }
 
-export function ScanAction({ isPlaceholderVisible, onStart }: ScanActionProps) {
+export function ScanAction({
+  onStart,
+  disabled = false,
+  label = '3초 스캔 시작',
+  status = '현재 데모에서는 촬영 사진을 서버에 저장하지 않아요.',
+}: ScanActionProps) {
   return (
     <>
       <PrimaryButton
@@ -14,13 +21,14 @@ export function ScanAction({ isPlaceholderVisible, onStart }: ScanActionProps) {
         fullWidth
         className="mt-5"
         onClick={onStart}
+        disabled={disabled}
         icon={<Camera size={17} aria-hidden="true" />}
         aria-describedby="scan-placeholder-status"
       >
-        3초 스캔 시작
+        {label}
       </PrimaryButton>
       <p id="scan-placeholder-status" className="mt-3 min-h-5 text-center text-[11px] font-medium text-ez-muted" role="status">
-        {isPlaceholderVisible ? '카메라 기능 연결을 준비하고 있어요.' : '촬영한 이미지는 현재 저장되지 않아요.'}
+        {status}
       </p>
     </>
   )

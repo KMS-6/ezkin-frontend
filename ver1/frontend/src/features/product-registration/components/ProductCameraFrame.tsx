@@ -1,10 +1,44 @@
+import type { RefObject } from 'react'
 import { PackageSearch } from 'lucide-react'
 
 interface ProductCameraFrameProps {
   compact?: boolean
+  videoRef?: RefObject<HTMLVideoElement | null>
+  isLoading?: boolean
 }
 
-export function ProductCameraFrame({ compact = false }: ProductCameraFrameProps) {
+export function ProductCameraFrame({
+  compact = false,
+  videoRef,
+  isLoading = false,
+}: ProductCameraFrameProps) {
+  if (videoRef) {
+    return (
+      <div className="relative mx-auto aspect-[3/4] w-full max-w-[300px] overflow-hidden rounded-[24px] bg-[#27212f]">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="h-full w-full object-cover"
+          aria-label="제품 촬영 후면 카메라 미리보기"
+        />
+        <span className="pointer-events-none absolute inset-[12%] rounded-[22px] border border-white/80" />
+        <span className="pointer-events-none absolute left-[12%] top-[12%] size-10 rounded-tl-[16px] border-l-2 border-t-2 border-white" />
+        <span className="pointer-events-none absolute right-[12%] top-[12%] size-10 rounded-tr-[16px] border-r-2 border-t-2 border-white" />
+        <span className="pointer-events-none absolute bottom-[12%] left-[12%] size-10 rounded-bl-[16px] border-b-2 border-l-2 border-white" />
+        <span className="pointer-events-none absolute bottom-[12%] right-[12%] size-10 rounded-br-[16px] border-b-2 border-r-2 border-white" />
+        <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-8 -translate-x-1/2 bg-white/55" />
+        <span className="pointer-events-none absolute left-1/2 top-1/2 h-8 w-px -translate-y-1/2 bg-white/55" />
+        {isLoading && (
+          <span className="absolute inset-0 grid place-items-center bg-[#27212f]/70 text-[12px] font-medium text-white" role="status">
+            카메라를 준비하고 있어요.
+          </span>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div
       className={compact

@@ -2,7 +2,9 @@ import type { Product } from './product'
 
 export type ProductAddStep =
   | 'intro'
+  | 'requestingPermission'
   | 'camera'
+  | 'cameraError'
   | 'preview'
   | 'analyzing'
   | 'confirm'
@@ -12,6 +14,12 @@ export type ProductAddStep =
   | 'complete'
 
 export type ProductImageSource = 'camera' | 'library'
+
+export type ProductCameraErrorCode =
+  | 'permission_denied'
+  | 'unsupported'
+  | 'camera_unavailable'
+  | 'capture_failed'
 
 export interface RecognitionCandidate {
   productId?: string

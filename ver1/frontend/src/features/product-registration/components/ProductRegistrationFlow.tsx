@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import {
   Camera,
@@ -17,6 +17,7 @@ import { recognizeProduct } from '../../../services/productRecognitionService'
 import type { Product } from '../../../types/product'
 import type {
   ProductAddStep,
+  ProductCameraErrorCode,
   ProductImageSource,
   RecognitionCandidate,
 } from '../../../types/productRecognition'
@@ -33,7 +34,9 @@ interface ProductRegistrationFlowProps {
 
 const stepTitles: Record<ProductAddStep, string> = {
   intro: '제품 추가',
+  requestingPermission: '제품 촬영',
   camera: '제품 촬영',
+  cameraError: '제품 촬영',
   preview: '사진 확인',
   analyzing: '제품 확인',
   confirm: '제품 확인',
@@ -58,6 +61,7 @@ export function ProductRegistrationFlow({
   const [fallbackSelectedIds, setFallbackSelectedIds] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cameraErrorCode, setCameraErrorCode] = useState<ProductCameraErrorCode>('camera_unavailable')
   const isMounted = useRef(true)
   const closeTimerRef = useRef<number | null>(null)
   const availableProducts = useMemo(
@@ -96,15 +100,19 @@ export function ProductRegistrationFlow({
     setStep('preview')
   }
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
+  const handleSelectedFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       setError('이미지 파일을 선택해주세요.')
       return
     }
     setImageForPreview(file, 'library')
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    handleSelectedFile(file)
   }
 
   const analyzeImage = async () => {
@@ -164,13 +172,22 @@ export function ProductRegistrationFlow({
     setCandidate(null)
     setCandidates([])
     setError(null)
-    setStep('camera')
+    setStep('requestingPermission')
   }
+
+  const handleCameraReady = useCallback(() => {
+    setStep((current) => current === 'requestingPermission' ? 'camera' : current)
+  }, [])
+
+  const handleCameraError = useCallback((code: ProductCameraErrorCode) => {
+    setCameraErrorCode(code)
+    setStep('cameraError')
+  }, [])
 
   const handleBack = () => {
     setError(null)
-    if (step === 'camera') setStep('intro')
-    else if (step === 'preview') setStep(imageSource === 'camera' ? 'camera' : 'intro')
+    if (step === 'requestingPermission' || step === 'camera' || step === 'cameraError') setStep('intro')
+    else if (step === 'preview') setStep(imageSource === 'camera' ? 'requestingPermission' : 'intro')
     else if (step === 'confirm' || step === 'candidates' || step === 'notFound') setStep('preview')
     else if (step === 'fallback') setStep('notFound')
   }
@@ -210,10 +227,20 @@ export function ProductRegistrationFlow({
           />
         )}
 
-        {step === 'camera' && (
+        {(step === 'requestingPermission' || step === 'camera') && (
           <ProductCameraCapture
+            onReady={handleCameraReady}
+            onError={handleCameraError}
             onCaptured={(image) => setImageForPreview(image, 'camera')}
-            onFileSelected={(file) => setImageForPreview(file, 'library')}
+            onFileSelected={handleSelectedFile}
+          />
+        )}
+
+        {step === 'cameraError' && (
+          <ProductCameraError
+            code={cameraErrorCode}
+            onRetry={openCamera}
+            onFileChange={handleFileChange}
           />
         )}
 
@@ -326,6 +353,55 @@ function ProductPreview({
       <SecondaryButton type="button" fullWidth className="mt-2" onClick={onRetake} icon={<RotateCcw size={15} aria-hidden="true" />}>
         다시 찍기
       </SecondaryButton>
+    </div>
+  )
+}
+
+const cameraErrorMessages: Record<ProductCameraErrorCode, { title: string; description: string }> = {
+  permission_denied: {
+    title: '카메라를 사용할 수 없어요.',
+    description: '사진에서 가져오기를 이용해도 괜찮아요.',
+  },
+  unsupported: {
+    title: '이 브라우저에서는 카메라를 사용할 수 없어요.',
+    description: '저장된 제품 사진을 선택해도 괜찮아요.',
+  },
+  camera_unavailable: {
+    title: '카메라를 열지 못했어요.',
+    description: '다른 앱에서 카메라를 사용 중인지 확인하거나 사진을 선택해주세요.',
+  },
+  capture_failed: {
+    title: '제품 사진을 찍지 못했어요.',
+    description: '괜찮아요. 다시 시도하거나 사진에서 가져올 수 있어요.',
+  },
+}
+
+function ProductCameraError({
+  code,
+  onRetry,
+  onFileChange,
+}: {
+  code: ProductCameraErrorCode
+  onRetry: () => void
+  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void
+}) {
+  const message = cameraErrorMessages[code]
+  return (
+    <div className="grid min-h-[390px] place-items-center text-center" role="alert">
+      <div className="w-full">
+        <span className="mx-auto grid size-14 place-items-center rounded-[20px] bg-ez-primary-soft text-ez-primary">
+          <Camera size={23} aria-hidden="true" />
+        </span>
+        <h3 className="mt-5 text-[19px] font-bold text-ez-text">{message.title}</h3>
+        <p className="mx-auto mt-2 max-w-[280px] text-[13px] leading-5 text-ez-muted">{message.description}</p>
+        <label className="mt-6 inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-ez-primary px-4 text-[14px] font-semibold text-white">
+          <Images size={17} aria-hidden="true" /> 사진에서 가져오기
+          <input type="file" accept="image/*" className="sr-only" onChange={onFileChange} />
+        </label>
+        <SecondaryButton type="button" fullWidth className="mt-2" onClick={onRetry} icon={<RotateCcw size={15} aria-hidden="true" />}>
+          다시 시도
+        </SecondaryButton>
+      </div>
     </div>
   )
 }
