@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw, Sparkles } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { PageContainer } from '../components/PageContainer'
 import { StickyDetailHeader } from '../components/StickyDetailHeader'
 import { PrimaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Disclaimer } from '../components/ui/Disclaimer'
 import { HeroCard } from '../components/ui/HeroCard'
-import { StatusBadge } from '../components/ui/StatusBadge'
 import { BriefingFactors } from '../features/briefing/components/BriefingFactors'
 import { BriefingPause, BriefingRoutine } from '../features/briefing/components/BriefingRoutine'
 import { useAuth } from '../features/auth/authContextValue'
@@ -65,8 +64,7 @@ export function BriefingPage() {
                 <h1 className="mt-2 text-[22px] font-bold leading-[1.3] tracking-[-0.03em] text-ez-text">
                   {briefing.skinHeadline}
                 </h1>
-                <StatusBadge tone="danger" className="mt-2.5">{briefing.riskLabel}</StatusBadge>
-                <p className="mt-3.5 text-[13px] font-normal leading-[1.7] text-ez-secondary">{briefing.summary}</p>
+                <p className="mt-3 text-[13px] font-normal leading-[1.7] text-ez-secondary">{briefing.summary}</p>
               </div>
             </HeroCard>
 
@@ -84,15 +82,8 @@ export function BriefingPage() {
               </div>
             )}
 
-            <section className="mt-7 rounded-[18px] bg-ez-primary-soft px-4 py-4">
-              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ez-primary">
-                <Sparkles size={14} aria-hidden="true" /> 오늘의 포인트
-              </p>
-              <p className="mt-1.5 text-[15px] font-semibold text-ez-primary-dark">{briefing.careTip}</p>
-            </section>
-
             <div className="mt-4">
-              <Disclaimer>EZkin의 안내는 생활·피부 데이터에서 관찰된 변화를 바탕으로 한 웰니스 가이드이며 의료적 진단이나 치료를 대신하지 않습니다.</Disclaimer>
+              <Disclaimer>EZkin의 안내는 웰니스 가이드이며 의료 진단이나 치료를 대신하지 않습니다.</Disclaimer>
             </div>
           </>
         )}
@@ -117,8 +108,7 @@ function BriefingError({ onRetry }: { onRetry: () => void }) {
       <span className="mx-auto grid size-11 place-items-center rounded-[15px] bg-ez-primary-soft text-ez-primary">
         <RefreshCw size={20} aria-hidden="true" />
       </span>
-      <h1 className="mt-4 text-[16px] font-semibold text-ez-text">오늘의 브리핑을 불러오지 못했어요.</h1>
-      <p className="mt-2 text-[12px] text-ez-muted">내 데이터는 그대로 있으니 한 번만 다시 시도해주세요.</p>
+      <h1 className="mt-4 text-[16px] font-semibold text-ez-text">브리핑을 불러오지 못했어요.</h1>
       <PrimaryButton type="button" className="mt-5 min-h-10" onClick={onRetry}>다시 시도</PrimaryButton>
     </Card>
   )

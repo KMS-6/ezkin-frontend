@@ -24,21 +24,15 @@ const metricIcons: Record<Exclude<LifeLogMetricType, 'diet'>, LucideIcon> = {
 
 interface LifeLogMetricGroupProps {
   entries: LifeLogEntry[]
-  sourceLabel: string
   layout?: 'rows' | 'grid'
 }
 
 export function LifeLogMetricGroup({
   entries,
-  sourceLabel,
   layout = 'rows',
 }: LifeLogMetricGroupProps) {
   return (
     <Card className="overflow-hidden">
-      <p className="border-b border-ez-border/70 px-4 py-2.5 text-[11px] font-medium text-ez-muted">
-        {sourceLabel}
-      </p>
-
       <div className={cn(layout === 'grid' && 'grid grid-cols-2')}>
         {entries.map((entry, index) => {
           const Icon = metricIcons[entry.type as Exclude<LifeLogMetricType, 'diet'>]
@@ -67,7 +61,7 @@ export function LifeLogMetricGroup({
                     {entry.value}{entry.unit && <span className="ml-0.5 text-[12px]">{entry.unit}</span>}
                   </p>
                 </div>
-                {entry.description && (
+                {entry.description && layout === 'rows' && (
                   <p className="mt-0.5 truncate text-[11px] font-normal text-ez-muted">
                     {entry.description}
                   </p>

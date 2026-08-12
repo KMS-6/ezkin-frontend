@@ -53,9 +53,7 @@ export function HealthConnectionSheet({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold text-ez-primary">
-            {connection.provider === 'demo' ? 'DEMO CONNECTION' : 'APPLE HEALTH'}
-          </p>
+          <p className="text-[11px] font-semibold text-ez-primary">생활 데이터</p>
           <button type="button" onClick={onClose} disabled={isBusy} className="grid size-10 place-items-center rounded-full text-ez-muted hover:bg-ez-primary-soft" aria-label="연결 관리 닫기">
             <X size={19} aria-hidden="true" />
           </button>
@@ -77,7 +75,7 @@ export function HealthConnectionSheet({
               {isConnected ? <Check size={22} aria-hidden="true" /> : <Activity size={22} aria-hidden="true" />}
             </span>
             <h2 id="health-connection-title" className="mt-4 text-[19px] font-bold tracking-[-0.025em] text-ez-text">
-              {isConnected ? '생활 데이터가 연결됐어요.' : '생활 데이터는 알아서 가져올게요.'}
+              {isConnected ? '생활 데이터가 연결됐어요.' : '생활 데이터를 연결할까요?'}
             </h2>
             <p className="mt-2 text-[13px] leading-5 text-ez-muted">
               {isConnected ? `${connectedMetrics.join(' · ')}을 함께 보고 있어요.` : '매일 기록하지 않아도 수면과 활동 흐름을 함께 볼 수 있어요.'}
@@ -89,14 +87,14 @@ export function HealthConnectionSheet({
               ))}
             </div>
             <p className="mt-4 text-[11px] leading-5 text-ez-muted">허용한 정보만 가져와요. 언제든 연결을 끊을 수 있어요.</p>
-            {!isConnected && <p className="mt-1 text-[10px] text-ez-muted">현재 웹에서는 실제 HealthKit 대신 Demo 생활 데이터를 연결합니다.</p>}
+            {!isConnected && <p className="mt-1 text-[10px] text-ez-muted">웹 데모에서는 예시 데이터를 연결해요.</p>}
             {error && <p className="mt-3 text-[12px] text-ez-danger" role="alert">{error}</p>}
 
             {isConnected ? (
               <SecondaryButton type="button" fullWidth className="mt-5 text-ez-danger" onClick={() => setIsConfirmingDisconnect(true)}>EZkin과 연결 끊기</SecondaryButton>
             ) : (
               <PrimaryButton type="button" fullWidth className="mt-5" onClick={onConnect} disabled={isBusy} icon={isBusy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : undefined}>
-                {isBusy ? '연결하고 있어요' : 'Demo 생활 데이터 연결하기'}
+                {isBusy ? '연결하고 있어요' : '생활 데이터 연결'}
               </PrimaryButton>
             )}
           </div>

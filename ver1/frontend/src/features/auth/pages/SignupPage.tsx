@@ -55,7 +55,7 @@ export function SignupPage() {
   return (
     <AuthPageLayout
       title="EZkin을 시작해볼까요?"
-      description={<>계정만 만들면<br />나머지는 3분이면 충분해요.</>}
+      description="계정을 만들면 바로 온보딩을 시작해요."
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="space-y-4">

@@ -35,7 +35,7 @@ export function ShelfStep({ selectedProductIds, onAddProducts, onNext }: ShelfSt
           ) : (
             <div className="space-y-2.5">
               <PrimaryButton type="button" fullWidth onClick={() => setIsRegistrationOpen(true)} icon={<Camera size={17} aria-hidden="true" />}>
-                제품 사진으로 등록하기
+                제품 촬영
               </PrimaryButton>
               <SecondaryButton type="button" fullWidth onClick={onNext}>
                 나중에 할게요
@@ -50,7 +50,6 @@ export function ShelfStep({ selectedProductIds, onAddProducts, onNext }: ShelfSt
               <Check size={20} strokeWidth={2.6} aria-hidden="true" />
             </span>
             <p className="mt-3 text-[14px] font-semibold text-ez-primary-dark">내 화장대에 {selectedProductIds.length}개 담았어요.</p>
-            <p className="mt-1 text-[11px] text-ez-muted">등록한 제품으로 오늘 루틴을 정리할게요.</p>
           </div>
         ) : (
           <ProductCameraFrame compact />

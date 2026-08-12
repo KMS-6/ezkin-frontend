@@ -55,7 +55,7 @@ export function LoginPage() {
   return (
     <AuthPageLayout
       title="다시 만나서 반가워요."
-      description={<>오늘 필요한 케어는<br />EZkin이 미리 정리해둘게요.</>}
+      description="오늘 필요한 케어를 확인해보세요."
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="space-y-4">

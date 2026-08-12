@@ -68,7 +68,7 @@ export function ShelfPage() {
       setAddFeedback('내 화장대에 추가했어요 ✓')
       return true
     } catch {
-      setError('제품을 추가하지 못했어요. 한 번만 다시 시도해주세요.')
+      setError('제품을 추가하지 못했어요. 다시 시도해주세요.')
       return false
     }
   }
@@ -104,18 +104,18 @@ export function ShelfPage() {
         ) : error && items.length === 0 ? (
           <EmptyState
             icon={<RefreshCw size={21} />}
-            title="잠시 화장대를 열지 못했어요"
-            description="조금 뒤 다시 불러오면 제품은 그대로 있을 거예요."
-            action={<PrimaryButton type="button" onClick={() => void loadShelf()}>다시 불러오기</PrimaryButton>}
+            title="화장대를 불러오지 못했어요"
+            description="잠시 후 다시 시도해주세요."
+            action={<PrimaryButton type="button" onClick={() => void loadShelf()}>다시 시도</PrimaryButton>}
           />
         ) : items.length === 0 ? (
           <EmptyState
             icon={<PackageOpen size={23} />}
-            title="아직 화장대가 비어 있어요"
-            description={'가지고 있는 제품 몇 개만 알려주면\n오늘 피부에 맞춰 골라드릴게요.\n\n나중에 해도 괜찮아요.'}
+            title="아직 등록한 제품이 없어요"
+            description="제품을 추가하면 오늘 쓸 조합을 정리해드려요."
             action={
               <PrimaryButton type="button" onClick={() => setIsPickerOpen(true)} icon={<Plus size={16} aria-hidden="true" />}>
-                제품 추가하기
+                제품 추가
               </PrimaryButton>
             }
           />
@@ -128,13 +128,12 @@ export function ShelfPage() {
             />
             {error && <p className="rounded-xl bg-[#fff0f1] px-3 py-2 text-center text-[11px] text-[#b54852]" role="status">{error}</p>}
             <ProductList
-              title="오늘은 이 제품들로"
+              title="오늘 추천"
               items={recommended}
             />
-            <ProductList title="평소처럼 사용해요" items={available} />
+            <ProductList title="사용 가능" items={available} />
             <ProductList
-              title="오늘은 잠깐 쉬어요"
-              description="사용 금지가 아니라 오늘만 자극을 조금 덜어보는 선택이에요."
+              title="오늘 쉬어가기"
               items={paused}
               soft
             />

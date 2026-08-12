@@ -72,7 +72,6 @@ export function ProfileStep({
     <OnboardingStepLayout
       eyebrow="모두 선택사항이에요"
       title="조금만 알려주세요."
-      description="처음 한 번만 알려주시면 더 나답게 살펴볼게요."
       footer={
         <PrimaryButton type="button" fullWidth onClick={onNext} disabled={hasBirthYearError} icon={<ArrowRight size={17} aria-hidden="true" />}>
           다음
@@ -122,7 +121,7 @@ export function ProfileStep({
         </fieldset>
 
         <fieldset>
-          <legend className="text-[12px] font-semibold text-ez-text">평소 함께 살펴볼 점</legend>
+          <legend className="text-[12px] font-semibold text-ez-text">함께 살펴볼 점</legend>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {healthConcernOptions.map((option) => (
               <ChoiceChip

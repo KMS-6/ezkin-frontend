@@ -28,9 +28,7 @@ export function PatternList({ patterns }: { patterns: TriggerPattern[] }) {
                     <p className="text-[14px] font-semibold text-ez-text">{pattern.label}</p>
                     <p className="mt-0.5 text-[11px] font-medium text-ez-primary">{pattern.qualitativeLabel}</p>
                   </div>
-                  <p className="shrink-0 text-right text-[11px] font-medium text-ez-muted">
-                    패턴 점수 <span className="text-[14px] font-semibold text-ez-text">{pattern.score}</span>
-                  </p>
+                  <p className="shrink-0 text-[12px] font-semibold text-ez-muted">{pattern.score}</p>
                 </div>
 
                 <div
@@ -40,7 +38,6 @@ export function PatternList({ patterns }: { patterns: TriggerPattern[] }) {
                 >
                   <div className="h-full rounded-full bg-ez-primary/75" style={{ width: `${pattern.score}%` }} />
                 </div>
-                <p className="mt-2 text-[11px] font-normal leading-4 text-ez-muted">{pattern.description}</p>
               </div>
             </div>
           </div>

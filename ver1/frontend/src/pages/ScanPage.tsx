@@ -28,7 +28,7 @@ import type {
 const errorMessages: Record<SkinScanErrorCode, { title: string; description: string }> = {
   permission_denied: {
     title: '카메라를 사용할 수 없어요.',
-    description: '브라우저에서 카메라 권한을 허용하면 피부 스캔을 사용할 수 있어요.',
+    description: '지금 스캔하지 않아도 괜찮아요. 나중에 다시 시도할 수 있어요.',
   },
   unsupported: {
     title: '이 브라우저에서는 카메라를 사용할 수 없어요.',
@@ -205,8 +205,7 @@ function IdleScan({ onStart }: { onStart: () => void }) {
   return (
     <>
       <header>
-        <p className="text-[11px] font-semibold text-ez-primary">필요할 때만</p>
-        <h1 className="mt-1.5 text-[21px] font-bold tracking-[-0.03em] text-ez-text">변화가 궁금할 때만 찍어요.</h1>
+        <h1 className="text-[21px] font-bold tracking-[-0.03em] text-ez-text">변화가 궁금할 때만 찍어요.</h1>
         <p className="mt-2 text-[13px] leading-5 text-ez-muted">매일 스캔하지 않아도 괜찮아요.</p>
       </header>
       <ScanFrame />
@@ -246,7 +245,6 @@ function ScanAnalyzing({ imageUrl }: { imageUrl: string | null }) {
           <LoaderCircle size={24} className="animate-spin" aria-hidden="true" />
         </span>
         <h1 className="mt-5 text-[18px] font-bold text-ez-text">피부 변화를 살펴보고 있어요.</h1>
-        <p className="mt-2 text-[13px] text-ez-muted">잠깐만 기다려주세요.</p>
       </div>
     </section>
   )
@@ -255,12 +253,11 @@ function ScanAnalyzing({ imageUrl }: { imageUrl: string | null }) {
 function ScanResultView({ result, onReset }: { result: SkinScanResult; onReset: () => void }) {
   return (
     <section>
-      <p className="text-[11px] font-semibold text-ez-primary">SCAN RESULT</p>
-      <h1 className="mt-1.5 text-[22px] font-bold leading-8 tracking-[-0.03em] text-ez-text">{result.summary}</h1>
-      <p className="mt-2 text-[14px] font-medium text-ez-secondary">{result.overallStatus}</p>
+      <p className="text-[11px] font-semibold text-ez-primary">스캔 결과</p>
+      <h1 className="mt-1.5 text-[22px] font-bold leading-8 tracking-[-0.03em] text-ez-text">{result.overallStatus}</h1>
 
       <Card className="mt-5 p-4">
-        <p className="text-[12px] font-semibold text-ez-muted">함께 살펴본 영역</p>
+        <p className="text-[12px] font-semibold text-ez-muted">관찰 영역</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {result.observedAreas.map((area) => (
             <span key={area} className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-ez-primary-soft px-3 text-[12px] font-semibold text-ez-primary-dark">
@@ -273,7 +270,7 @@ function ScanResultView({ result, onReset }: { result: SkinScanResult; onReset: 
         </div>
       </Card>
 
-      <p className="mt-4 text-[11px] leading-5 text-ez-muted">생활 관리를 돕는 Demo 안내이며 의학적 진단을 의미하지 않아요.</p>
+      <p className="mt-4 text-[11px] leading-5 text-ez-muted">EZkin의 안내는 의료 진단을 대신하지 않아요.</p>
       <PrimaryButton type="button" fullWidth className="mt-5" onClick={onReset} icon={<ScanFace size={17} aria-hidden="true" />}>
         스캔 마치기
       </PrimaryButton>

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, ChevronRight, RefreshCw, Sparkles, Utensils } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Check, RefreshCw, Sparkles, Utensils } from 'lucide-react'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
 import { PrimaryButton } from '../components/ui/Button'
@@ -81,11 +80,10 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
       </HeroCard>
 
       <section className="mt-7">
-        <SectionHeader title="EZkin이 확인한 오늘" />
+        <SectionHeader title="생활 데이터" />
         {lifeLog.connections.lifeDataConnected ? (
           <LifeLogMetricGroup
             entries={lifeLog.lifestyleEntries}
-            sourceLabel="생활 데이터"
           />
         ) : (
           <ConnectionEmptyState kind="생활 데이터" />
@@ -97,7 +95,6 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
         {lifeLog.connections.weatherConnected ? (
           <LifeLogMetricGroup
             entries={lifeLog.environmentEntries}
-            sourceLabel="현재 위치"
             layout="grid"
           />
         ) : (
@@ -105,35 +102,23 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
         )}
       </section>
 
-      <section className="mt-7">
-        <h2 className="text-[15px] font-semibold text-ez-text">오늘 한 번 알려준 것</h2>
-        {dietEntry ? (
+      {dietEntry && (
+        <section className="mt-7">
+          <h2 className="text-[16px] font-bold text-ez-text">직접 알려준 내용</h2>
           <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-ez-border bg-white px-4 py-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
               <Utensils size={16} strokeWidth={1.8} aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium text-ez-muted">{dietEntry.label} · 직접 알려줌</p>
+              <p className="text-[11px] font-medium text-ez-muted">{dietEntry.label}</p>
               <p className="mt-0.5 text-[14px] font-semibold text-ez-text">{dietEntry.value}</p>
             </div>
             <p className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-ez-success">
               <Check size={12} strokeWidth={2.5} aria-hidden="true" /> 반영했어요
             </p>
           </div>
-        ) : (
-          <p className="mt-2 text-[12px] font-normal text-ez-muted">
-            오늘은 따로 알려준 내용이 없어요.
-          </p>
-        )}
-      </section>
-
-      <Link
-        to="/briefing"
-        className="mt-6 flex items-center justify-between border-t border-ez-border px-1 py-4 text-[12px] font-medium text-ez-muted transition hover:text-ez-primary"
-      >
-        이 데이터가 오늘 케어에 어떻게 반영됐는지 보기
-        <ChevronRight size={15} aria-hidden="true" />
-      </Link>
+        </section>
+      )}
     </>
   )
 }
@@ -155,10 +140,7 @@ function LifeLogError({ onRetry }: { onRetry: () => void }) {
       <span className="mx-auto grid size-11 place-items-center rounded-[15px] bg-ez-primary-soft text-ez-primary">
         <RefreshCw size={20} aria-hidden="true" />
       </span>
-      <h1 className="mt-4 text-[16px] font-semibold text-ez-text">
-        오늘의 라이프로그를 불러오지 못했어요.
-      </h1>
-      <p className="mt-2 text-[12px] text-ez-muted">저장된 내용은 그대로 있으니 한 번만 다시 시도해주세요.</p>
+      <h1 className="mt-4 text-[16px] font-semibold text-ez-text">라이프로그를 불러오지 못했어요.</h1>
       <PrimaryButton type="button" className="mt-5 min-h-10" onClick={onRetry}>
         다시 시도
       </PrimaryButton>

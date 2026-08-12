@@ -160,7 +160,7 @@ export function ProductRegistrationFlow({
         setStep('complete')
         closeTimerRef.current = window.setTimeout(onClose, 650)
       } else {
-        setError('제품을 추가하지 못했어요. 한 번만 다시 시도해주세요.')
+        setError('제품을 추가하지 못했어요. 다시 시도해주세요.')
       }
     } finally {
       if (isMounted.current) setIsSaving(false)
@@ -323,7 +323,7 @@ function ProductAddIntro({
       </p>
       {error && <p className="mt-3 text-[11px] text-ez-danger" role="status">{error}</p>}
       <PrimaryButton type="button" fullWidth className="mt-6" onClick={onOpenCamera} icon={<Camera size={17} aria-hidden="true" />}>
-        카메라로 촬영
+        제품 촬영
       </PrimaryButton>
       <label className="mt-2 inline-flex min-h-10 cursor-pointer items-center justify-center gap-1.5 px-4 text-[12px] font-semibold text-ez-primary">
         <Images size={15} aria-hidden="true" /> 사진에서 가져오기
@@ -445,10 +445,10 @@ function ProductConfirm({
       </div>
       {error && <p className="mt-3 text-center text-[11px] text-ez-danger" role="status">{error}</p>}
       <PrimaryButton type="button" fullWidth className="mt-5" onClick={onConfirm} disabled={isSaving || !candidate.productId} icon={isSaving ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}>
-        {isSaving ? '추가하는 중' : '네, 맞아요'}
+        {isSaving ? '추가하는 중' : '내 화장대에 추가'}
       </PrimaryButton>
       <SecondaryButton type="button" fullWidth className="mt-2" onClick={onReviewAgain} icon={<RotateCcw size={15} aria-hidden="true" />}>
-        다시 확인하기
+        사진 다시 보기
       </SecondaryButton>
     </div>
   )
@@ -553,7 +553,7 @@ function ProductFallback({
             onToggle={onToggle}
           />
           <PrimaryButton type="button" fullWidth className="sticky bottom-0 mt-4" onClick={onAdd} disabled={selectedIds.length === 0 || isSaving} icon={isSaving ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}>
-            {isSaving ? '추가하는 중' : selectedIds.length > 0 ? `${selectedIds.length}개 추가하기` : '추가할 제품을 골라주세요'}
+            {isSaving ? '추가하는 중' : selectedIds.length > 0 ? '내 화장대에 추가' : '추가할 제품을 골라주세요'}
           </PrimaryButton>
         </>
       ) : (
@@ -576,7 +576,7 @@ function ProductAddComplete() {
         <span className="mx-auto grid size-14 place-items-center rounded-full bg-[#eaf8f2] text-[#287d61]">
           <Check size={24} aria-hidden="true" />
         </span>
-        <p className="mt-4 text-[15px] font-semibold text-ez-text">내 화장대에 추가했어요 ✓</p>
+        <p className="mt-4 text-[15px] font-semibold text-ez-text">내 화장대에 추가했어요.</p>
       </div>
     </div>
   )

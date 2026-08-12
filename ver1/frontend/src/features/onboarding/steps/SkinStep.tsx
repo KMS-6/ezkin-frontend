@@ -25,7 +25,6 @@ export function SkinStep({
 }: SkinStepProps) {
   return (
     <OnboardingStepLayout
-      eyebrow="오늘 케어를 고르는 기준이에요"
       title="평소 피부를 알려주세요."
       description="잘 모르겠다면 그대로 선택해도 괜찮아요."
       footer={
@@ -69,7 +68,7 @@ export function SkinStep({
           <ConcernSelector options={concernOptions} selected={selectedConcerns} onToggle={onConcernToggle} />
         </div>
         <p className="mt-3 min-h-5 text-[12px] font-medium text-ez-primary" role="status">
-          {limitMessage ?? (selectedConcerns.length > 0 ? `${selectedConcerns.length}개 골랐어요` : '')}
+          {limitMessage}
         </p>
       </fieldset>
     </OnboardingStepLayout>

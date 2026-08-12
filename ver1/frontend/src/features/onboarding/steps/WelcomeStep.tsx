@@ -7,7 +7,6 @@ interface WelcomeStepProps {
 }
 
 const benefits = [
-  '매일 기록할 필요 없이',
   '가지고 있는 제품부터',
   '오늘 필요한 것만',
 ]
@@ -25,7 +24,7 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
           onClick={onNext}
           icon={<ArrowRight size={17} aria-hidden="true" />}
         >
-          3분 만에 시작하기
+          시작하기
         </PrimaryButton>
       }
     >

@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Check, ChevronRight, MessageCircleQuestion, PackageOpen, Settings } from 'lucide-react'
+import { ChevronRight, MessageCircleQuestion, PackageOpen, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
 import { Card } from '../components/ui/Card'
 import { HeroCard } from '../components/ui/HeroCard'
 import { QuickChoice } from '../components/ui/QuickChoice'
-import { StatusBadge } from '../components/ui/StatusBadge'
 import { useAuth } from '../features/auth/authContextValue'
 import { getSavedDietChoice, getTodayBriefing, saveDietChoice } from '../services/briefingService'
 import { getTodayRoutineForUser } from '../services/productService'
@@ -67,12 +66,6 @@ export function HomePage() {
 
   const routine = todayRoutine[period]
   const isShelfEmpty = todayRoutine.shelfProductCount === 0
-  const isUsingFallback = todayRoutine.usedAvailableFallback[period]
-  const metricSummary = briefing.metrics
-    .map((metric) => `${metric.label} ${metric.value}`)
-    .join(' · ')
-  const syncedSummary = `${briefing.syncedSources.join(' · ')} 자동 확인 완료`
-
   return (
     <>
       <AppHeader
@@ -113,22 +106,10 @@ export function HomePage() {
             <h1 className="mt-2 text-[22px] font-bold leading-[1.3] tracking-[-0.03em] text-ez-text">
               {briefing.skinHeadline}
             </h1>
-            <StatusBadge tone="danger" className="mt-2.5 font-semibold">
-              {briefing.riskLabel}
-            </StatusBadge>
-
-            <p className="mt-3.5 text-[13px] font-normal leading-[1.65] text-ez-secondary">
+            <p className="mt-3 text-[13px] font-normal leading-[1.65] text-ez-secondary">
               {briefing.summary}
             </p>
-            <p className="mt-3 text-[12px] font-medium text-ez-text" aria-label="오늘 피부 상태에 참고한 주요 지표">
-              {metricSummary}
-            </p>
-
-            <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-white/80 pt-3">
-              <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-ez-muted">
-                <Check size={13} strokeWidth={2.6} className="shrink-0 text-ez-success" aria-hidden="true" />
-                <span>{syncedSummary}</span>
-              </p>
+            <div className="mt-3.5 flex justify-end border-t border-white/80 pt-3">
               <Link
                 to="/briefing"
                 className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-ez-primary hover:text-ez-primary-dark"
@@ -142,18 +123,7 @@ export function HomePage() {
 
         <section className="mt-5">
           <div className="mb-2.5 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">
-                그래서 오늘은 이렇게
-              </h2>
-              <p className="mt-0.5 text-[11px] font-normal text-ez-muted">
-                {isShelfEmpty
-                  ? '제품을 알려주면 가진 것 안에서 골라드릴게요'
-                  : isUsingFallback
-                    ? '오늘은 루틴을 단순하게 가져가도 좋아요'
-                    : '가진 제품 중 이 정도면 충분해요'}
-              </p>
-            </div>
+            <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">오늘 루틴</h2>
             {!isShelfEmpty && (
               <div
                 className="flex rounded-[10px] bg-[#eeecf2] p-0.5"
@@ -184,12 +154,9 @@ export function HomePage() {
                 <PackageOpen size={19} aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[14px] font-semibold text-ez-text">아직 내 화장대가 비어 있어요.</p>
-                <p className="mt-1 text-[11px] leading-4 text-ez-muted">
-                  가지고 있는 제품을 알려주면 오늘 피부에 맞춰 골라드릴게요.
-                </p>
-                <Link to="/shelf" className="mt-2 inline-flex items-center gap-0.5 text-[12px] font-semibold text-ez-primary">
-                  내 화장대 등록하기 <ChevronRight size={13} aria-hidden="true" />
+                <p className="text-[14px] font-semibold text-ez-text">아직 등록한 제품이 없어요.</p>
+                <Link to="/shelf" className="mt-1.5 inline-flex items-center gap-0.5 text-[12px] font-semibold text-ez-primary">
+                  제품 추가 <ChevronRight size={13} aria-hidden="true" />
                 </Link>
               </div>
             </Card>
@@ -231,13 +198,7 @@ export function HomePage() {
           <Card className={cn(dietChoice ? 'px-4 py-3' : 'p-4')}>
             {!dietChoice && (
               <div className="mb-3">
-                <p className="text-[11px] font-medium text-ez-primary">오늘 한 가지만 알려주세요</p>
-                <h2 className="mt-1 text-[14px] font-semibold text-ez-text">
-                  식단은 평소보다 어땠나요?
-                </h2>
-                <p className="mt-0.5 text-[11px] font-normal text-ez-muted">
-                  선택하지 않아도 괜찮아요.
-                </p>
+                <h2 className="text-[14px] font-semibold text-ez-text">오늘 식사는 어땠어요?</h2>
               </div>
             )}
             <QuickChoice
@@ -255,11 +216,13 @@ export function HomePage() {
 
 function HomeSkeleton() {
   return (
-    <div className="animate-pulse px-5 pt-5" aria-label="오늘 브리핑 불러오는 중">
-      <div className="h-9 w-28 rounded-xl bg-[#ebe7f2]" />
-      <div className="mt-5 h-[270px] rounded-[24px] bg-[#eee9f8]" />
-      <div className="mt-5 h-[230px] rounded-[20px] bg-[#f0edf5]" />
-    </div>
+    <>
+      <AppHeader showLogo />
+      <PageContainer className="animate-pulse pt-2" aria-label="오늘 브리핑 불러오는 중">
+        <div className="h-[210px] rounded-[24px] bg-[#eee9f8]" />
+        <div className="mt-5 h-[200px] rounded-[20px] bg-[#f0edf5]" />
+      </PageContainer>
+    </>
   )
 }
 
@@ -269,14 +232,13 @@ function HomeLoadError() {
       <AppHeader showLogo />
       <PageContainer className="grid place-items-center py-10">
         <Card className="w-full p-6 text-center">
-          <h1 className="text-[16px] font-semibold text-ez-text">오늘의 케어를 잠시 불러오지 못했어요.</h1>
-          <p className="mt-2 text-[12px] text-ez-muted">내 화장대는 그대로 있으니 한 번만 다시 불러와주세요.</p>
+          <h1 className="text-[16px] font-semibold text-ez-text">오늘의 케어를 불러오지 못했어요.</h1>
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="mt-4 min-h-10 rounded-xl bg-ez-primary-soft px-4 text-[13px] font-semibold text-ez-primary"
           >
-            다시 불러오기
+            다시 시도
           </button>
         </Card>
       </PageContainer>

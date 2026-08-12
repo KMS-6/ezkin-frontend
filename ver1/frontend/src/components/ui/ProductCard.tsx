@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getStatusPresentation } from '../../features/shelf/productPresentation'
+import { getRecommendedTimeLabel, getStatusPresentation } from '../../features/shelf/productPresentation'
 import type { ProductWithRecommendation } from '../../types/product'
 import { StatusBadge } from './StatusBadge'
 
@@ -25,14 +25,10 @@ export function ProductCard({ item }: ProductCardProps) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[14px] font-semibold text-ez-text">{product.name}</p>
-        <p className="mt-1 truncate text-[11px] font-normal text-ez-muted">
-          {product.categoryLabel} · {product.ingredients.join(' · ')}
-        </p>
+        <p className="mt-0.5 text-[11px] font-medium text-ez-muted">{product.brand}</p>
         <div className="mt-2 flex min-w-0 items-center gap-2">
           <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-          {recommendation.status === 'pause' && (
-            <span className="truncate text-[10px] text-ez-muted">{recommendation.summary}</span>
-          )}
+          <span className="text-[10px] font-medium text-ez-muted">{getRecommendedTimeLabel(recommendation.recommendedTime)}</span>
         </div>
       </div>
       <ChevronRight size={18} className="text-[#c6bfce]" aria-hidden="true" />

@@ -25,7 +25,7 @@ export function BriefingRoutine({ data, period, onPeriodChange }: BriefingRoutin
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">그래서 오늘은 이렇게</h2>
+          <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">오늘 루틴</h2>
           {routineCaption && <p className="mt-1 text-[12px] font-normal text-ez-muted">{routineCaption}</p>}
         </div>
         {!isShelfEmpty && (
@@ -100,8 +100,7 @@ export function BriefingPause({ data }: BriefingPauseProps) {
   return (
     <section>
       <div className="mb-3">
-        <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">오늘은 잠깐 쉬어요</h2>
-        <p className="mt-1 text-[12px] font-normal text-ez-muted">사용 금지가 아니라 오늘만 자극을 조금 덜어보는 선택이에요.</p>
+        <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">오늘 쉬어갈 제품</h2>
       </div>
       <Card className="divide-y divide-ez-border/80 overflow-hidden bg-[#fbfaff]">
         {data.paused.map((item) => (

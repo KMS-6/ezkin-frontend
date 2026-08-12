@@ -65,9 +65,6 @@ export function FaceMap({ events }: { events: TroubleEvent[] }) {
             </div>
           ))}
         </div>
-        <p className="mt-3 text-[11px] leading-4 text-ez-muted">
-          표시된 숫자는 최근 기록에서 관찰된 횟수예요.
-        </p>
       </div>
     </Card>
   )

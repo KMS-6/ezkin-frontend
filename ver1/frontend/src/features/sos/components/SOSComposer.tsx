@@ -28,7 +28,7 @@ export function SOSComposer({ value, disabled = false, onChange, onSend }: SOSCo
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="지금 궁금한 걸 짧게 물어보세요."
+        placeholder="지금 궁금한 걸 물어보세요."
         aria-label="SOS 질문"
         className="min-h-11 max-h-28 flex-1 resize-none bg-transparent px-2 py-2.5 text-[13px] leading-5 text-ez-text outline-none placeholder:text-ez-muted/80 disabled:opacity-60"
       />

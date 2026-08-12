@@ -27,7 +27,7 @@ export function HealthConnectionCard({ status, onConnect }: HealthConnectionCard
             {isConnected ? '수면 · 활동 · HRV' : '수면과 활동을 자동으로 반영해요.'}
           </p>
           <p className="mt-2 text-[12px] leading-5 text-ez-muted">
-            {needsRetry ? '지금은 연결하지 않아도 괜찮아요.' : '허용한 정보만 가져오고 언제든 연결을 끊을 수 있어요.'}
+            {needsRetry ? '지금은 연결하지 않아도 괜찮아요.' : '허용한 정보만 가져와요.'}
           </p>
         </div>
       </div>
@@ -47,7 +47,7 @@ export function HealthConnectionCard({ status, onConnect }: HealthConnectionCard
         {isRequesting ? '연결하고 있어요' : isConnected ? '생활 데이터 연결됨' : needsRetry ? '나중에 다시 연결' : '연결하기'}
       </button>
       {!isConnected && (
-        <p className="mt-2 text-center text-[10px] text-ez-muted">현재 웹 데모에서는 Demo 생활 데이터를 연결해요.</p>
+        <p className="mt-2 text-center text-[10px] text-ez-muted">웹 데모에서는 예시 데이터를 연결해요.</p>
       )}
     </div>
   )

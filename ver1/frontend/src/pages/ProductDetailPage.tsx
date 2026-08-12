@@ -55,8 +55,8 @@ export function ProductDetailPage() {
         ) : !item ? (
           <EmptyState
             icon={<FlaskConical size={22} />}
-            title={loadError ? '제품 정보를 잠시 불러오지 못했어요' : '내 화장대에서 찾지 못했어요'}
-            description={loadError ? '조금 뒤 화장대에서 다시 열어주세요.' : '화장대로 돌아가 등록한 제품을 다시 확인해주세요.'}
+            title={loadError ? '제품 정보를 불러오지 못했어요' : '내 화장대에서 찾지 못했어요'}
+            description={loadError ? '잠시 후 다시 시도해주세요.' : '화장대에서 등록한 제품을 확인해주세요.'}
           />
         ) : <ProductDetailContent item={item} />}
       </PageContainer>
@@ -82,7 +82,6 @@ function ProductDetailContent({ item }: { item: ProductWithRecommendation }) {
           <div className="min-w-0">
             <p className="text-[11px] font-medium text-ez-muted">{product.brand} · {product.categoryLabel}</p>
             <h1 className="mt-1 text-[21px] font-bold leading-7 tracking-[-0.03em] text-ez-text">{product.name}</h1>
-            <p className="mt-1.5 text-[12px] text-ez-muted">{product.ingredients.join(' · ')}</p>
             <StatusBadge tone={status.tone} className="mt-3">{status.detailLabel}</StatusBadge>
           </div>
         </div>
@@ -96,13 +95,13 @@ function ProductDetailContent({ item }: { item: ProductWithRecommendation }) {
         <p className="mt-3 text-[15px] font-semibold leading-6 text-ez-text">{recommendation.summary}</p>
         <p className="mt-2 text-[13px] font-normal leading-6 text-ez-muted">{recommendation.reason}</p>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 border-t border-ez-border pt-4">
-          <div className="rounded-[14px] bg-[#f7f5fa] p-3">
+        <div className="mt-5 grid grid-cols-2 border-t border-ez-border pt-4">
+          <div className="pr-3">
             <Clock3 size={15} className="text-ez-primary" aria-hidden="true" />
             <p className="mt-2 text-[10px] text-ez-muted">추천 시간</p>
             <p className="mt-0.5 text-[13px] font-semibold text-ez-text">{getRecommendedTimeLabel(recommendation.recommendedTime)}</p>
           </div>
-          <div className="rounded-[14px] bg-[#f7f5fa] p-3">
+          <div className="border-l border-ez-border pl-3">
             <Layers3 size={15} className="text-ez-primary" aria-hidden="true" />
             <p className="mt-2 text-[10px] text-ez-muted">사용 위치</p>
             <p className="mt-0.5 text-[13px] font-semibold text-ez-text">
@@ -119,12 +118,15 @@ function ProductDetailContent({ item }: { item: ProductWithRecommendation }) {
       )}
 
       <Card className="mt-4 p-4">
+        <h2 className="text-[14px] font-semibold text-ez-text">주요 성분</h2>
+        <p className="mt-2 text-[13px] leading-5 text-ez-muted">{product.ingredients.join(' · ')}</p>
+        <div className="my-3 h-px bg-ez-border" />
         <h2 className="text-[14px] font-semibold text-ez-text">평소 사용법</h2>
         <p className="mt-2 text-[13px] leading-5 text-ez-muted">{product.usage}</p>
       </Card>
 
       <div className="mt-3">
-        <Disclaimer>오늘의 추천은 생활 데이터와 환경을 바탕으로 한 웰니스 가이드이며 의료적 판단이 아니에요.</Disclaimer>
+        <Disclaimer>오늘의 안내는 웰니스 가이드이며 의료적 판단이 아니에요.</Disclaimer>
       </div>
     </div>
   )

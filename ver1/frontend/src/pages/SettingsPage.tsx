@@ -169,9 +169,6 @@ export function SettingsPage() {
         >
           {isLoggingOut ? '로그아웃 중' : '로그아웃'}
         </SecondaryButton>
-        <p className="mt-3 text-center text-[11px] leading-5 text-ez-muted">
-          로그아웃해도 내 정보는 유지돼요.
-        </p>
       </PageContainer>
 
       {isHealthSheetOpen && healthConnection && (
@@ -213,7 +210,7 @@ function ProfileSettings({
   return (
     <>
       <section className="mt-7">
-        <h2 className="text-[16px] font-bold text-ez-text">내 케어 기준</h2>
+        <h2 className="text-[16px] font-bold text-ez-text">내 피부</h2>
         <Card className="mt-3 overflow-hidden">
           <div className="flex items-start gap-3 px-4 py-3.5">
             <CalendarDays size={17} className="mt-0.5 shrink-0 text-ez-primary" aria-hidden="true" />
@@ -253,7 +250,7 @@ function ProfileSettings({
       </section>
 
       <section className="mt-7">
-        <h2 className="text-[16px] font-bold text-ez-text">자동 데이터</h2>
+        <h2 className="text-[16px] font-bold text-ez-text">연결</h2>
         <Card className="mt-3 overflow-hidden">
           <ConnectionStatusRow
             icon={<Activity size={17} aria-hidden="true" />}

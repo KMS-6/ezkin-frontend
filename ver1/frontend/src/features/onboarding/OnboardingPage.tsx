@@ -112,7 +112,7 @@ export function OnboardingPage() {
       setProfile({ ...profile, registeredProductIds: products.map((product) => product.id) })
       return true
     } catch {
-      setSaveMessage('제품을 추가하지 못했어요. 한 번만 다시 시도해주세요.')
+      setSaveMessage('제품을 추가하지 못했어요. 다시 시도해주세요.')
       return false
     }
   }
@@ -152,7 +152,7 @@ export function OnboardingPage() {
       await completeOnboarding()
       navigate('/home', { replace: true })
     } catch {
-      setSaveMessage('준비를 마무리하지 못했어요. 한 번만 다시 눌러주세요.')
+      setSaveMessage('준비를 마무리하지 못했어요. 다시 시도해주세요.')
       setIsCompleting(false)
     }
   }
@@ -246,7 +246,7 @@ function OnboardingLoadError({ message }: { message: string }) {
     <div className="flex min-h-dvh flex-col items-center justify-center px-6 text-center sm:min-h-[calc(100vh-32px)]" role="alert">
       <EZkinLogo />
       <p className="mt-5 text-[14px] font-medium text-ez-text">{message}</p>
-      <p className="mt-1 text-[12px] text-ez-muted">잠시 후 한 번만 다시 시도해주세요.</p>
+      <p className="mt-1 text-[12px] text-ez-muted">잠시 후 다시 시도해주세요.</p>
       <button
         type="button"
         onClick={() => window.location.reload()}

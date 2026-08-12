@@ -63,7 +63,6 @@ export function AnalysisPage() {
     <>
       <AppHeader
         title="내 피부 패턴"
-        subtitle="피부 변화와 함께 나타난 생활 패턴을 모아봤어요."
       />
       <PageContainer className="pt-3">
         {isLoading ? (
@@ -103,7 +102,7 @@ function AnalysisReport({
 
       <section className="mt-7">
         <SectionHeader
-          title="이런 패턴이 자주 함께 있었어요"
+          title="함께 관찰된 패턴"
           description="점수는 함께 관찰된 정도예요."
         />
         <PatternList patterns={analysis.patterns} />
@@ -111,8 +110,7 @@ function AnalysisReport({
 
       <section className="mt-7">
         <SectionHeader
-          title="최근 피부 변화 전 72시간"
-          description="최근 목요일 전후에 함께 있었던 조건이에요."
+          title="변화 전 72시간"
         />
         <AnalysisTimeline items={analysis.timeline} />
       </section>
@@ -130,9 +128,6 @@ function AnalysisReport({
         <SectionHeader title="다음번엔 이렇게" />
         <Card className="p-4">
           <p className="text-[13px] font-normal leading-6 text-ez-secondary">{careSuggestion}</p>
-          <p className="mt-2.5 border-t border-ez-border/70 pt-2.5 text-[11px] font-medium text-ez-primary">
-            새 제품보다 이미 가진 제품을 먼저 활용했어요.
-          </p>
         </Card>
       </section>
 
@@ -155,7 +150,7 @@ function AnalysisWaiting({ eligibility }: { eligibility: AnalysisEligibility }) 
       <EmptyState
         icon={<ChartNoAxesCombined size={22} aria-hidden="true" />}
         title="아직 조금 더 지켜보는 중이에요."
-        description={'EZkin이 내 피부 패턴을 찾으려면\n약 2주의 데이터가 필요해요.\n\n따로 기록할 건 없어요.\n평소처럼 지내면 됩니다.'}
+        description={'패턴을 찾으려면 약 2주의 데이터가 필요해요.\n\n따로 기록할 건 없어요.'}
       />
     </>
   )
@@ -212,7 +207,6 @@ function AnalysisError({ onRetry }: { onRetry: () => void }) {
         <RefreshCw size={20} aria-hidden="true" />
       </span>
       <h1 className="mt-4 text-[16px] font-semibold text-ez-text">피부 패턴을 불러오지 못했어요.</h1>
-      <p className="mt-2 text-[12px] text-ez-muted">저장된 데이터는 그대로 있으니 한 번만 다시 시도해주세요.</p>
       <PrimaryButton type="button" className="mt-5 min-h-10" onClick={onRetry}>
         다시 시도
       </PrimaryButton>

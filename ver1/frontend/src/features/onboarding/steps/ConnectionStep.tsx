@@ -62,18 +62,14 @@ export function ConnectionStep({
 
   return (
     <OnboardingStepLayout
-      eyebrow="입력할 일을 줄여드릴게요"
-      title="생활 데이터는 알아서 가져올게요."
+      title="생활 데이터를 연결할까요?"
       footer={
         <div className="space-y-2">
-          <p className="text-center text-[11px] font-normal text-ez-muted">
-            연결하지 않아도 EZkin을 사용할 수 있어요.
-          </p>
           <PrimaryButton type="button" fullWidth onClick={() => setIsReady(true)}>
-            준비 마치기
+            다음
           </PrimaryButton>
           <button type="button" onClick={() => setIsReady(true)} className="min-h-9 w-full text-[12px] font-medium text-ez-muted hover:text-ez-primary">
-            지금은 건너뛸게요
+            건너뛰기
           </button>
         </div>
       }
