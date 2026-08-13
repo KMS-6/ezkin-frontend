@@ -54,6 +54,21 @@ export function NotificationSettingsPage() {
     }
   }
 
+  const preview = async (kind: 'briefing' | 'lunch' | 'dinner') => {
+    setMessage(null)
+    try {
+      if (getNotificationPermission() !== 'granted') {
+        throw new Error('브라우저의 사이트 설정에서 알림을 허용해주세요.')
+      }
+      if (kind === 'briefing') await showBriefingPreview()
+      else await showMealPreview(kind)
+      setMessage('시스템 알림을 보냈어요. Windows 알림창을 확인해주세요.')
+    } catch (error) {
+      setPermission(getNotificationPermission())
+      setMessage(error instanceof Error ? error.message : '알림 미리보기를 표시하지 못했어요.')
+    }
+  }
+
   const denied = permission === 'denied'
   const unsupported = permission === 'unsupported'
 
@@ -97,12 +112,12 @@ export function NotificationSettingsPage() {
           <Card className="mt-5 p-4 text-center text-[13px] text-ez-muted">이 브라우저에서는 Web Push를 지원하지 않아요.</Card>
         ) : subscribed ? (
           <div className="mt-5 grid gap-2">
-            <SecondaryButton fullWidth onClick={() => void showBriefingPreview()} icon={<Send size={16} aria-hidden="true" />}>
+            <SecondaryButton fullWidth onClick={() => void preview('briefing')} icon={<Send size={16} aria-hidden="true" />}>
               브리핑 알림 미리보기
             </SecondaryButton>
             <div className="grid grid-cols-2 gap-2">
-              <SecondaryButton onClick={() => void showMealPreview('lunch')}>점심 알림 보기</SecondaryButton>
-              <SecondaryButton onClick={() => void showMealPreview('dinner')}>저녁 알림 보기</SecondaryButton>
+              <SecondaryButton onClick={() => void preview('lunch')}>점심 알림 보기</SecondaryButton>
+              <SecondaryButton onClick={() => void preview('dinner')}>저녁 알림 보기</SecondaryButton>
             </div>
             <button type="button" onClick={() => void disable()} disabled={busy} className="min-h-11 text-[12px] font-semibold text-ez-muted">
               알림 끄기

@@ -104,8 +104,9 @@ export async function showBriefingPreview(): Promise<void> {
   await registration.showNotification('오늘은 피부를 조금 쉬게 해주세요.', {
     body: '수면이 짧고 공기가 건조했어요.',
     icon: '/icon-192.png',
-    tag: 'ezkin-briefing-preview',
-    data: { url: '/briefing' },
+    badge: '/icon-192.png',
+    tag: `ezkin-briefing-preview-${Date.now()}`,
+    data: { type: 'briefing', url: '/briefing' },
   })
 }
 
@@ -114,7 +115,8 @@ export async function showMealPreview(meal: 'lunch' | 'dinner'): Promise<void> {
   await registration.showNotification(meal === 'lunch' ? '점심은 어땠어요?' : '저녁은 어땠어요?', {
     body: '눌러서 한 번만 선택하면 기록이 끝나요.',
     icon: '/icon-192.png',
-    tag: `ezkin-meal-preview-${meal}`,
+    badge: '/icon-192.png',
+    tag: `ezkin-meal-preview-${meal}-${Date.now()}`,
     data: {
       type: 'meal',
       meal,
