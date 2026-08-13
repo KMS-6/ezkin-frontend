@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { ArrowRight, LoaderCircle } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PrimaryButton } from '../../../components/ui/Button'
 import { AuthServiceError } from '../../../services/authService'
 import { useAuth } from '../authContextValue'
 import { validateEmail, validatePassword } from '../validation'
 import { AuthField } from '../components/AuthField'
 import { AuthPageLayout } from '../components/AuthPageLayout'
+import { getSafeReturnPath } from '../authNavigation'
 
 interface FormErrors {
   email?: string
@@ -17,6 +18,7 @@ interface FormErrors {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,7 +42,8 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       const user = await login({ email, password })
-      navigate(user.onboardingCompleted ? '/home' : '/onboarding', { replace: true })
+      const requestedPath = getSafeReturnPath(location.state)
+      navigate(user.onboardingCompleted ? requestedPath ?? '/home' : '/onboarding', { replace: true })
     } catch (error) {
       if (error instanceof AuthServiceError && error.code === 'INVALID_CREDENTIALS') {
         setErrors({ password: error.message })

@@ -1,6 +1,7 @@
 import { LoaderCircle } from 'lucide-react'
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
+import { getSafeReturnPath } from './authNavigation'
 import { useAuth } from './authContextValue'
 
 interface ProtectedRouteProps {
@@ -9,9 +10,13 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ onboarding = 'required' }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth()
+  const location = useLocation()
 
   if (isLoading) return <AuthLoadingScreen />
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`
+    return <Navigate to="/login" replace state={{ returnTo }} />
+  }
   if (onboarding === 'required' && !user.onboardingCompleted) {
     return <Navigate to="/onboarding" replace />
   }
@@ -24,10 +29,12 @@ export function ProtectedRoute({ onboarding = 'required' }: ProtectedRouteProps)
 
 export function PublicOnlyRoute() {
   const { user, isLoading } = useAuth()
+  const location = useLocation()
 
   if (isLoading) return <AuthLoadingScreen />
   if (user) {
-    return <Navigate to={user.onboardingCompleted ? '/home' : '/onboarding'} replace />
+    const requestedPath = getSafeReturnPath(location.state)
+    return <Navigate to={user.onboardingCompleted ? requestedPath ?? '/home' : '/onboarding'} replace />
   }
 
   return <Outlet />

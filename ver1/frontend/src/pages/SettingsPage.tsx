@@ -9,6 +9,7 @@ import {
   Droplets,
   LogOut,
   Package,
+  Bell,
   RefreshCw,
   Sparkles,
   UserRound,
@@ -152,6 +153,22 @@ export function SettingsPage() {
             }}
           />
         )}
+
+        <div className="mt-5">
+          <Link
+            to="/settings/notifications"
+            className="flex min-h-[68px] items-center gap-3 rounded-[20px] border border-ez-border bg-white px-4 py-3 shadow-card transition hover:bg-ez-primary-soft/35"
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
+              <Bell size={17} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-ez-text">알림 설정</p>
+              <p className="mt-0.5 text-[11px] text-ez-muted">아침 브리핑 · 식사 Quick Input</p>
+            </div>
+            <ChevronRight size={17} className="text-ez-muted" aria-hidden="true" />
+          </Link>
+        </div>
 
         <div className="mt-5">
           <Disclaimer>

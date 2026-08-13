@@ -1,0 +1,29 @@
+{
+  "name": "EZkin - 매일 달라지는 피부 케어",
+  "short_name": "EZkin",
+  "description": "카메라, 생활 데이터, 날씨를 바탕으로 오늘의 피부 케어를 알려드려요.",
+  "start_url": "/home?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f7fc",
+  "theme_color": "#6c4ccf",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "오늘 브리핑", "url": "/briefing", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "식사 입력", "url": "/quick-input/meal?meal=lunch", "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}

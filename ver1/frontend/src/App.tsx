@@ -13,6 +13,8 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ScanPage } from './pages/ScanPage'
 import { SosPage } from './pages/SosPage'
 import { ShelfPage } from './pages/ShelfPage'
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage'
+import { MealQuickInputPage } from './pages/MealQuickInputPage'
 
 function App() {
   return (
@@ -39,6 +41,8 @@ function App() {
             <Route path="shelf/:id" element={<ProductDetailPage />} />
             <Route path="analysis" element={<AnalysisPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+            <Route path="quick-input/meal" element={<MealQuickInputPage />} />
             <Route path="sos" element={<SosPage />} />
           </Route>
 
