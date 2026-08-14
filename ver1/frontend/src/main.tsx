@@ -4,13 +4,19 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './features/auth/AuthContext.tsx'
 import { registerServiceWorker } from './services/notificationService.ts'
+import { listenForNotificationActions, syncPendingNotificationActions } from './services/notificationActionService.ts'
 
-void registerServiceWorker()
+async function bootstrap() {
+  await registerServiceWorker()
+  await syncPendingNotificationActions().catch(() => undefined)
+  listenForNotificationActions()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </StrictMode>,
+  )
+}
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  </StrictMode>,
-)
+void bootstrap()

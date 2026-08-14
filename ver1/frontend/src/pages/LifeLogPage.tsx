@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, RefreshCw, Sparkles, Utensils } from 'lucide-react'
+import { Check, Droplets, RefreshCw, Sparkles, Utensils } from 'lucide-react'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
 import { PrimaryButton } from '../components/ui/Button'
@@ -36,6 +36,12 @@ export function LifeLogPage() {
     void loadLifeLog()
   }, [loadLifeLog])
 
+  useEffect(() => {
+    const refresh = () => void loadLifeLog()
+    window.addEventListener('ezkin:life-log-updated', refresh)
+    return () => window.removeEventListener('ezkin:life-log-updated', refresh)
+  }, [loadLifeLog])
+
   if (!user) return null
 
   return (
@@ -56,7 +62,6 @@ export function LifeLogPage() {
 
 function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
   const hasAutomaticData = lifeLog.automaticCount > 0
-  const dietEntry = lifeLog.manualEntries.find((entry) => entry.type === 'diet')
 
   return (
     <>
@@ -102,20 +107,26 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
         )}
       </section>
 
-      {dietEntry && (
+      {lifeLog.manualEntries.length > 0 && (
         <section className="mt-7">
           <h2 className="text-[16px] font-bold text-ez-text">직접 알려준 내용</h2>
-          <div className="mt-2.5 flex items-center gap-3 rounded-[16px] border border-ez-border bg-white px-4 py-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
-              <Utensils size={16} strokeWidth={1.8} aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-medium text-ez-muted">{dietEntry.label}</p>
-              <p className="mt-0.5 text-[14px] font-semibold text-ez-text">{dietEntry.value}</p>
-            </div>
-            <p className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-ez-success">
-              <Check size={12} strokeWidth={2.5} aria-hidden="true" /> 반영했어요
-            </p>
+          <div className="mt-2.5 overflow-hidden rounded-[16px] border border-ez-border bg-white">
+            {lifeLog.manualEntries.map((entry) => (
+              <div key={entry.id} className="flex items-center gap-3 px-4 py-3 [&+&]:border-t [&+&]:border-ez-border/70">
+                <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
+                  {entry.type === 'water'
+                    ? <Droplets size={16} strokeWidth={1.8} aria-hidden="true" />
+                    : <Utensils size={16} strokeWidth={1.8} aria-hidden="true" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium text-ez-muted">{entry.label}</p>
+                  <p className="mt-0.5 text-[14px] font-semibold text-ez-text">{entry.value}</p>
+                </div>
+                <p className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-ez-success">
+                  <Check size={12} strokeWidth={2.5} aria-hidden="true" /> 반영했어요
+                </p>
+              </div>
+            ))}
           </div>
         </section>
       )}

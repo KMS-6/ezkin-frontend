@@ -9,6 +9,7 @@ export type LifeLogMetricType =
   | 'uv'
   | 'pm25'
   | 'diet'
+  | 'water'
 
 export interface LifeLogEntry {
   id: string

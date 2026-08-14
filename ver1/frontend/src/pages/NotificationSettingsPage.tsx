@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
 import { PrimaryButton, SecondaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { useAuth } from '../features/auth/authContextValue'
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -11,10 +12,12 @@ import {
   hasPushSubscription,
   showBriefingPreview,
   showMealPreview,
+  showWaterPreview,
   type NotificationPermissionState,
 } from '../services/notificationService'
 
 export function NotificationSettingsPage() {
+  const { user } = useAuth()
   const [permission, setPermission] = useState<NotificationPermissionState>(() => getNotificationPermission())
   const [subscribed, setSubscribed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -54,14 +57,15 @@ export function NotificationSettingsPage() {
     }
   }
 
-  const preview = async (kind: 'briefing' | 'lunch' | 'dinner') => {
+  const preview = async (kind: 'briefing' | 'lunch' | 'dinner' | 'water') => {
     setMessage(null)
     try {
       if (getNotificationPermission() !== 'granted') {
         throw new Error('브라우저의 사이트 설정에서 알림을 허용해주세요.')
       }
       if (kind === 'briefing') await showBriefingPreview()
-      else await showMealPreview(kind)
+      else if (kind === 'water') await showWaterPreview(user?.id ?? 'demo-user')
+      else await showMealPreview(kind, user?.id ?? 'demo-user')
       setMessage('시스템 알림을 보냈어요. Windows 알림창을 확인해주세요.')
     } catch (error) {
       setPermission(getNotificationPermission())
@@ -91,10 +95,11 @@ export function NotificationSettingsPage() {
         <Card className="mt-6 overflow-hidden">
           <NotificationRow title="아침 하루 브리핑" description="오늘 피부 상태와 꼭 필요한 케어" />
           <NotificationRow title="점심 · 저녁 식사" description="알림에서 바로 들어와 한 번 탭으로 기록" />
+          <NotificationRow title="물 섭취" description="알림창에서 +1잔 또는 5잔 이상 선택" />
         </Card>
 
         <p className="mt-4 text-center text-[11px] leading-5 text-ez-muted">
-          물 섭취, 루틴 등 추가 알림은 보내지 않아요.<br />알림을 허용하지 않아도 모든 기능을 사용할 수 있어요.
+          브리핑 · 식사 · 물 알림만 최소한으로 보내요.<br />알림을 허용하지 않아도 모든 기능을 사용할 수 있어요.
         </p>
 
         {message && (
@@ -119,6 +124,7 @@ export function NotificationSettingsPage() {
               <SecondaryButton onClick={() => void preview('lunch')}>점심 알림 보기</SecondaryButton>
               <SecondaryButton onClick={() => void preview('dinner')}>저녁 알림 보기</SecondaryButton>
             </div>
+            <SecondaryButton fullWidth onClick={() => void preview('water')}>물 알림 보기</SecondaryButton>
             <button type="button" onClick={() => void disable()} disabled={busy} className="min-h-11 text-[12px] font-semibold text-ez-muted">
               알림 끄기
             </button>

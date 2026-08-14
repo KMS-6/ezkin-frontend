@@ -7,6 +7,7 @@ import type {
 } from '../types/lifeLog'
 import { getSavedDietChoice, getTodayBriefing } from './briefingService'
 import { getOnboardingProfile } from './onboardingService'
+import { getTodayWaterGlasses } from './notificationActionService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -48,17 +49,27 @@ export async function getConnectionStatus(userId: string): Promise<LifeLogConnec
 
 export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry[]> {
   const choice = getSavedDietChoice(userId)
-  if (!choice) return []
-
-  return [{
+  const waterGlasses = getTodayWaterGlasses(userId)
+  return [
+    ...(choice ? [{
     id: 'diet',
-    type: 'diet',
+    type: 'diet' as const,
     label: '오늘 식단',
     value: dietLabel(choice),
     description: '이미 오늘 케어에 반영했어요.',
-    source: 'manual',
+    source: 'manual' as const,
     sourceLabel: '직접 알려줌',
-  }]
+    }] : []),
+    ...(waterGlasses > 0 ? [{
+      id: 'water',
+      type: 'water' as const,
+      label: '오늘 물 섭취',
+      value: `${waterGlasses}잔${waterGlasses >= 5 ? ' 이상' : ''}`,
+      description: '알림에서 간단히 알려줬어요.',
+      source: 'manual' as const,
+      sourceLabel: '알림에서 알려줌',
+    }] : []),
+  ]
 }
 
 export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {

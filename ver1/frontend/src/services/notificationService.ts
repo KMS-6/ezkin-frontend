@@ -110,17 +110,44 @@ export async function showBriefingPreview(): Promise<void> {
   })
 }
 
-export async function showMealPreview(meal: 'lunch' | 'dinner'): Promise<void> {
+type NotificationOptionsWithActions = NotificationOptions & {
+  actions: Array<{ action: string; title: string }>
+}
+
+export async function showMealPreview(meal: 'lunch' | 'dinner', userId: string): Promise<void> {
   const registration = await navigator.serviceWorker.ready
-  await registration.showNotification(meal === 'lunch' ? '점심은 어땠어요?' : '저녁은 어땠어요?', {
-    body: '눌러서 한 번만 선택하면 기록이 끝나요.',
+  const options: NotificationOptionsWithActions = {
+    body: '앱을 열지 않고 알림창에서 바로 골라주세요.',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: `ezkin-meal-preview-${meal}-${Date.now()}`,
+    actions: [
+      { action: 'meal-usual', title: '평소처럼' },
+      { action: 'meal-spicy', title: '조금 자극적' },
+    ],
     data: {
       type: 'meal',
       meal,
+      userId,
+      demo: true,
       url: `/quick-input/meal?meal=${meal}`,
     },
-  })
+  }
+  await registration.showNotification(meal === 'lunch' ? '점심은 어땠어요?' : '저녁은 어땠어요?', options)
+}
+
+export async function showWaterPreview(userId: string): Promise<void> {
+  const registration = await navigator.serviceWorker.ready
+  const options: NotificationOptionsWithActions = {
+    body: '앱을 열지 않고 알림창에서 바로 기록해요.',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: `ezkin-water-preview-${Date.now()}`,
+    actions: [
+      { action: 'water-add', title: '+1잔' },
+      { action: 'water-enough', title: '5잔 이상' },
+    ],
+    data: { type: 'water', userId, demo: true, url: '/lifelog' },
+  }
+  await registration.showNotification('오늘 물은 얼마나 마셨어요?', options)
 }
