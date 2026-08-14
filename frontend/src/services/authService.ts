@@ -279,12 +279,42 @@ export async function getCurrentUser(): Promise<User | null> {
 
   try {
     const session = JSON.parse(saved) as AuthResponse
+    // 자동 진입으로 만든 Demo session은 session의 온보딩 상태를 그대로 사용합니다.
+    if (session.user.id === demoAccount.user.id) return session.user
     const account = readMockUsers().find(({ user }) => user.id === session.user.id)
     return account?.user ?? session.user
   } catch {
     clearSession()
     return null
   }
+}
+
+export async function getEntryUser(): Promise<User | null> {
+  const currentUser = await getCurrentUser()
+  if (currentUser || !USE_MOCK_API) return currentUser
+
+  const response: AuthResponse = {
+    user: {
+      ...demoAccount.user,
+      onboardingCompleted: false,
+    },
+    accessToken: `mock-token-${demoAccount.user.id}`,
+  }
+
+  saveSession(response)
+  return response.user
+}
+
+export async function activateDemoUser(user: User): Promise<User> {
+  if (!USE_MOCK_API) {
+    throw new AuthServiceError('UNKNOWN', 'Demo 시나리오는 Mock 환경에서만 사용할 수 있어요.')
+  }
+
+  saveSession({
+    user,
+    accessToken: `mock-token-${user.id}`,
+  })
+  return user
 }
 
 export async function completeOnboarding(): Promise<User> {

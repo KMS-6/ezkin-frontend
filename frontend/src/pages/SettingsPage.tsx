@@ -7,19 +7,17 @@ import {
   ChevronRight,
   CloudSun,
   Droplets,
-  LogOut,
   Package,
   RefreshCw,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
-import { SecondaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
+import { DemoScenarioSwitch } from '../features/demo/DemoScenarioSwitch'
 import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
 import { concernOptions } from '../mocks/onboarding'
 import {
@@ -32,12 +30,10 @@ import type { HealthConnection } from '../types/healthConnection'
 import type { OnboardingProfile } from '../types/onboarding'
 
 export function SettingsPage() {
-  const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [profile, setProfile] = useState<OnboardingProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [healthConnection, setHealthConnection] = useState<HealthConnection | null>(null)
   const [isHealthSheetOpen, setIsHealthSheetOpen] = useState(false)
   const [isUpdatingHealth, setIsUpdatingHealth] = useState(false)
@@ -65,17 +61,6 @@ export function SettingsPage() {
   useEffect(() => {
     void loadProfile()
   }, [loadProfile])
-
-  const handleLogout = async () => {
-    if (isLoggingOut) return
-    setIsLoggingOut(true)
-    try {
-      await logout()
-      navigate('/login', { replace: true })
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
 
   const handleHealthConnect = async () => {
     if (!user || isUpdatingHealth) return
@@ -118,19 +103,6 @@ export function SettingsPage() {
     <>
       <AppHeader title="설정" backTo="/home" />
       <PageContainer className="pt-3">
-        <section>
-          <h1 className="text-[19px] font-bold tracking-[-0.025em] text-ez-text">내 계정</h1>
-          <Card className="mt-3 flex items-center gap-3 p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-ez-primary-soft text-ez-primary">
-              <UserRound size={19} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-ez-muted">로그인 계정</p>
-              <p className="mt-0.5 truncate text-[14px] font-semibold text-ez-text">{user.email}</p>
-            </div>
-          </Card>
-        </section>
-
         {isLoading ? (
           <SettingsSkeleton />
         ) : hasError || !profile ? (
@@ -159,16 +131,8 @@ export function SettingsPage() {
           </Disclaimer>
         </div>
 
-        <SecondaryButton
-          type="button"
-          fullWidth
-          className="mt-5 text-ez-danger"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          icon={<LogOut size={17} aria-hidden="true" />}
-        >
-          {isLoggingOut ? '로그아웃 중' : '로그아웃'}
-        </SecondaryButton>
+        <DemoScenarioSwitch userId={user.id} />
+
       </PageContainer>
 
       {isHealthSheetOpen && healthConnection && (
@@ -209,7 +173,7 @@ function ProfileSettings({
 
   return (
     <>
-      <section className="mt-7">
+      <section>
         <h2 className="text-[16px] font-bold text-ez-text">내 피부</h2>
         <Card className="mt-3 overflow-hidden">
           <div className="flex items-start gap-3 px-4 py-3.5">
@@ -314,7 +278,7 @@ function ConnectionStatusRow({
 
 function SettingsSkeleton() {
   return (
-    <div className="mt-7 animate-pulse" aria-label="내 설정 불러오는 중">
+    <div className="animate-pulse" aria-label="내 설정 불러오는 중">
       <div className="h-5 w-24 rounded bg-[#e8e4ef]" />
       <div className="mt-3 h-32 rounded-[20px] bg-[#efecf4]" />
       <div className="mt-7 h-5 w-24 rounded bg-[#e8e4ef]" />

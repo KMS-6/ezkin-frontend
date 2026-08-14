@@ -9,6 +9,7 @@ export function AppShell() {
   const { user, isLoading } = useAuth()
   const showBottomNav = !isLoading
     && Boolean(user?.onboardingCompleted)
+    && pathname !== '/'
     && !routesWithoutNav.some((route) => pathname.startsWith(route))
 
   return (

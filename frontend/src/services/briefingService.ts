@@ -58,3 +58,14 @@ export function getSavedDietChoice(userId: string): DietChoice | null {
   const choice = readDietChoices()[userId]
   return choice === 'usual' || choice === 'spicy' ? choice : null
 }
+
+export function clearDemoDietChoice(userId: string): void {
+  if (!USE_MOCK_API) return
+
+  const choices = readDietChoices()
+  if (!(userId in choices)) return
+
+  const nextChoices = { ...choices }
+  delete nextChoices[userId]
+  localStorage.setItem(DIET_STORAGE_KEY, JSON.stringify(nextChoices))
+}

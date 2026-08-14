@@ -6,6 +6,7 @@ import type {
   SkinType,
   SkinConcern,
 } from '../types/onboarding'
+import { demo30DayProfileSeed } from '../mocks/onboarding'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -16,28 +17,27 @@ const DEMO_USER_ID = 'ezkin-demo-user'
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
 type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
 
-function createDefaultProfile(userId: string): OnboardingProfile {
-  if (userId === DEMO_USER_ID) {
+function hasCompletedDemoSession(userId: string): boolean {
+  if (userId !== DEMO_USER_ID) return false
+
+  try {
+    const savedSession = localStorage.getItem('ezkin:auth-session')
+    if (!savedSession) return false
+    const session = JSON.parse(savedSession) as { user?: { id?: string; onboardingCompleted?: boolean } }
+    return session.user?.id === userId && session.user.onboardingCompleted === true
+  } catch {
+    return false
+  }
+}
+
+function createDefaultProfile(
+  userId: string,
+  hasSavedProfile: boolean,
+): OnboardingProfile {
+  if (!hasSavedProfile && hasCompletedDemoSession(userId)) {
     return {
       userId,
-      currentStep: 5,
-      onboardingVersion: 2,
-      nickname: 'EZkin',
-      birthYear: 1999,
-      gender: 'prefer_not_to_say',
-      healthConcerns: ['irregular_sleep'],
-      skinType: 'combination',
-      selectedConcerns: ['dryness', 'sensitivity'],
-      registeredProductIds: [
-        'calming-toner',
-        'hyaluronic-serum',
-        'ceramide-cream',
-        'retinol-serum',
-        'spf50-sunscreen',
-      ],
-      lifeDataConnected: true,
-      weatherConnected: true,
-      completedAt: '2026-07-12T00:00:00.000Z',
+      ...demo30DayProfileSeed,
     }
   }
 
@@ -71,7 +71,7 @@ function resolveStep(savedProfile: StoredOnboardingProfile | undefined, defaultS
 }
 
 function resolveMockProfile(userId: string, savedProfile?: StoredOnboardingProfile): OnboardingProfile {
-  const defaultProfile = createDefaultProfile(userId)
+  const defaultProfile = createDefaultProfile(userId, Boolean(savedProfile))
   const resolved: OnboardingProfile = {
     ...defaultProfile,
     ...savedProfile,
@@ -93,25 +93,7 @@ function resolveMockProfile(userId: string, savedProfile?: StoredOnboardingProfi
       : defaultProfile.registeredProductIds,
   }
 
-  if (userId !== DEMO_USER_ID) return resolved
-
-  return {
-    ...resolved,
-    currentStep: 5,
-    selectedConcerns: resolved.selectedConcerns.length > 0
-      ? resolved.selectedConcerns
-      : defaultProfile.selectedConcerns,
-    registeredProductIds: resolved.registeredProductIds.length > 0
-      ? resolved.registeredProductIds
-      : defaultProfile.registeredProductIds,
-    lifeDataConnected: savedProfile?.completedAt
-      ? resolved.lifeDataConnected
-      : defaultProfile.lifeDataConnected,
-    weatherConnected: savedProfile?.completedAt
-      ? resolved.weatherConnected
-      : defaultProfile.weatherConnected,
-    completedAt: savedProfile?.completedAt ?? defaultProfile.completedAt,
-  }
+  return resolved
 }
 
 function readMockProfiles(): Record<string, StoredOnboardingProfile> {
@@ -206,4 +188,18 @@ export function completeOnboardingProfile(userId: string): Promise<OnboardingPro
     currentStep: 5,
     completedAt: new Date().toISOString(),
   })
+}
+
+export function resetDemoOnboardingProfile(userId: string): Promise<void> {
+  if (!USE_MOCK_API) {
+    return Promise.reject(new Error('Demo 초기화는 Mock 환경에서만 사용할 수 있어요.'))
+  }
+
+  const profiles = readMockProfiles()
+  if (!(userId in profiles)) return Promise.resolve()
+
+  const nextProfiles = { ...profiles }
+  delete nextProfiles[userId]
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(nextProfiles))
+  return Promise.resolve()
 }

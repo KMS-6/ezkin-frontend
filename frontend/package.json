@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:auth": "node scripts/auth-integration-check.mjs",
+    "test:entry": "node scripts/entry-integration-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

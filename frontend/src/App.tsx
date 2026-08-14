@@ -1,7 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { ProtectedRoute, PublicOnlyRoute, RootRedirect } from './features/auth/AuthRoute'
-import { LoginPage } from './features/auth/pages/LoginPage'
-import { SignupPage } from './features/auth/pages/SignupPage'
+import { ProtectedRoute } from './features/auth/AuthRoute'
 import { OnboardingPage } from './features/onboarding/OnboardingPage'
 import { AppShell } from './layouts/AppShell'
 import { HomePage } from './pages/HomePage'
@@ -13,18 +11,16 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ScanPage } from './pages/ScanPage'
 import { SosPage } from './pages/SosPage'
 import { ShelfPage } from './pages/ShelfPage'
+import { SplashPage } from './pages/SplashPage'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<RootRedirect />} />
-
-          <Route element={<PublicOnlyRoute />}>
-            <Route path="login" element={<LoginPage />} />
-            <Route path="signup" element={<SignupPage />} />
-          </Route>
+          <Route index element={<SplashPage />} />
+          <Route path="login" element={<Navigate to="/" replace />} />
+          <Route path="signup" element={<Navigate to="/" replace />} />
 
           <Route element={<ProtectedRoute onboarding="incomplete" />}>
             <Route path="onboarding" element={<OnboardingPage />} />
