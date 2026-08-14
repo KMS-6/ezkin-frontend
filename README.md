@@ -24,6 +24,6 @@ Scenario를 선택하면 해당 Demo User 상태로 전환한 뒤 Entry Flow를 
 ### Demo UI 노출 설정
 
 Demo Scenario Switch는 실제 사용자 기능이 아닌 **해커톤 시연용 기능**이므로 환경변수를 통해 노출 여부를 제어합니다.
-
+(front/.env.example 파일에 존재)
 ```env
 VITE_ENABLE_DEMO_SCENARIO=true
