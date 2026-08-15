@@ -7,15 +7,29 @@ import { Card } from '../components/ui/Card'
 import { HeroCard } from '../components/ui/HeroCard'
 import { QuickChoice } from '../components/ui/QuickChoice'
 import { useAuth } from '../features/auth/authContextValue'
-import { getSavedDietChoice, getTodayBriefing, saveDietChoice } from '../services/briefingService'
+import { getTodayBriefing } from '../services/briefingService'
 import { getTodayRoutineForUser } from '../services/productService'
-import type { BriefingData, DietChoice } from '../types/briefing'
+import {
+  getTodayQuickInput,
+  saveNotificationDietChoice,
+  saveWaterChoice,
+} from '../services/quickInputService'
+import type { BriefingData } from '../types/briefing'
 import type { RoutinePeriod, TodayShelfRoutine } from '../types/product'
 import { cn } from '../utils/cn'
+import type { NotificationDietChoice, WaterChoice } from '../types/androidNotification'
+import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
 
-const dietChoices: Array<{ label: string; value: DietChoice }> = [
-  { label: '평소처럼', value: 'usual' },
-  { label: '조금 자극적', value: 'spicy' },
+const waterChoices: Array<{ label: string; value: WaterChoice }> = [
+  { label: '3잔 미만', value: 'under_3' },
+  { label: '3~5잔', value: '3_to_5' },
+  { label: '5잔 이상', value: 'over_5' },
+]
+
+const dietChoices: Array<{ label: string; value: NotificationDietChoice }> = [
+  { label: '클린', value: 'clean' },
+  { label: '보통', value: 'normal' },
+  { label: '자극적', value: 'stimulating' },
 ]
 
 export function HomePage() {
@@ -24,27 +38,30 @@ export function HomePage() {
   const [todayRoutine, setTodayRoutine] = useState<TodayShelfRoutine | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [period, setPeriod] = useState<RoutinePeriod>('am')
-  const [dietChoice, setDietChoice] = useState<DietChoice | null>(() => {
-    try {
-      return user ? getSavedDietChoice(user.id) : null
-    } catch {
-      return null
-    }
-  })
+  const [waterChoice, setWaterChoice] = useState<WaterChoice | null>(null)
+  const [dietChoice, setDietChoice] = useState<NotificationDietChoice | null>(null)
 
   useEffect(() => {
     if (!user) return
     let isActive = true
     setLoadError(false)
 
+    try {
+      const quickInput = getTodayQuickInput(user.id)
+      setWaterChoice(quickInput?.waterChoice ?? null)
+      setDietChoice(quickInput?.dietChoice ?? null)
+    } catch {
+      setWaterChoice(null)
+      setDietChoice(null)
+    }
+
     void Promise.all([
-      getTodayBriefing(),
+      getTodayBriefing(user.id),
       getTodayRoutineForUser(user.id),
     ]).then(([briefingData, routineData]) => {
       if (!isActive) return
       setBriefing(briefingData)
       setTodayRoutine(routineData)
-      if (briefingData.dietChoice) setDietChoice(briefingData.dietChoice)
     }).catch(() => {
       if (isActive) setLoadError(true)
     })
@@ -54,10 +71,29 @@ export function HomePage() {
     }
   }, [user])
 
-  const handleDietChoice = (choice: DietChoice) => {
+  useEffect(() => {
     if (!user) return
+    const handleQuickInputSync = () => {
+      const quickInput = getTodayQuickInput(user.id)
+      setWaterChoice(quickInput?.waterChoice ?? null)
+      setDietChoice(quickInput?.dietChoice ?? null)
+    }
+    window.addEventListener(QUICK_INPUT_SYNCED_EVENT, handleQuickInputSync)
+    return () => window.removeEventListener(QUICK_INPUT_SYNCED_EVENT, handleQuickInputSync)
+  }, [user])
+
+  const handleWaterChoice = (choice: WaterChoice) => {
+    if (!user) return
+    const previous = waterChoice
+    setWaterChoice(choice)
+    void saveWaterChoice(user.id, choice).catch(() => setWaterChoice(previous))
+  }
+
+  const handleDietChoice = (choice: NotificationDietChoice) => {
+    if (!user) return
+    const previous = dietChoice
     setDietChoice(choice)
-    void saveDietChoice(user.id, choice).catch(() => setDietChoice(null))
+    void saveNotificationDietChoice(user.id, choice).catch(() => setDietChoice(previous))
   }
 
   if (!user) return null
@@ -195,18 +231,25 @@ export function HomePage() {
         </section>
 
         <section className="mt-5">
-          <Card className={cn(dietChoice ? 'px-4 py-3' : 'p-4')}>
-            {!dietChoice && (
-              <div className="mb-3">
-                <h2 className="text-[14px] font-semibold text-ez-text">오늘 식사는 어땠어요?</h2>
-              </div>
-            )}
-            <QuickChoice
-              choices={dietChoices}
-              value={dietChoice}
-              onChange={handleDietChoice}
-              confirmation="반영했어요"
-            />
+          <Card className="overflow-hidden">
+            <div className="px-4 py-3.5">
+              <QuickChoice
+                question="오늘 물은 얼마나 마셨어요?"
+                compactLabel="오늘 물"
+                choices={waterChoices}
+                value={waterChoice}
+                onChange={handleWaterChoice}
+              />
+            </div>
+            <div className="border-t border-ez-border/80 px-4 py-3.5">
+              <QuickChoice
+                question="오늘 식단은 어땠어요?"
+                compactLabel="오늘 식단"
+                choices={dietChoices}
+                value={dietChoice}
+                onChange={handleDietChoice}
+              />
+            </div>
           </Card>
         </section>
       </PageContainer>

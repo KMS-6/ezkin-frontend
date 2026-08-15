@@ -3,7 +3,7 @@ import type { User } from '../types/auth'
 import type { DemoScenario, DemoScenarioOption } from '../types/demoScenario'
 import type { OnboardingProfile } from '../types/onboarding'
 import { activateDemoUser } from './authService'
-import { clearDemoDietChoice } from './briefingService'
+import { clearDemoQuickInputs } from './quickInputService'
 import {
   completeOnboardingProfile,
   getOnboardingProfile,
@@ -48,7 +48,7 @@ function getScenarioOption(scenario: DemoScenario): DemoScenarioOption {
 async function ensureFirstScenarioData(reset = false): Promise<OnboardingProfile> {
   if (reset) {
     await resetDemoOnboardingProfile(DEMO_FIRST_USER_ID)
-    clearDemoDietChoice(DEMO_FIRST_USER_ID)
+    clearDemoQuickInputs(DEMO_FIRST_USER_ID)
   }
   return getOnboardingProfile(DEMO_FIRST_USER_ID)
 }

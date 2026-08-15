@@ -1,9 +1,13 @@
 import { todayBriefingMock } from '../mocks/briefing'
 import type { BriefingData, DietChoice } from '../types/briefing'
+import {
+  clearDemoNotificationDietChoice,
+  getSavedNotificationDietChoice,
+  saveNotificationDietChoice,
+} from './quickInputService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const DIET_STORAGE_KEY = 'ezkin:diet-choices'
 const TOKEN_KEY = 'ezkin:access-token'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -24,26 +28,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-function readDietChoices(): Record<string, DietChoice> {
-  const saved = localStorage.getItem(DIET_STORAGE_KEY)
-  if (!saved) return {}
-
-  try {
-    return JSON.parse(saved) as Record<string, DietChoice>
-  } catch {
-    return {}
+export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
+  if (USE_MOCK_API) {
+    return Promise.resolve({
+      ...todayBriefingMock,
+      ...(userId ? { dietChoice: getSavedNotificationDietChoice(userId) ?? undefined } : {}),
+    })
   }
-}
-
-export async function getTodayBriefing(): Promise<BriefingData> {
-  if (USE_MOCK_API) return Promise.resolve(todayBriefingMock)
   return request<BriefingData>('/briefing')
 }
 
 export async function saveDietChoice(userId: string, choice: DietChoice): Promise<void> {
   if (USE_MOCK_API) {
-    const choices = readDietChoices()
-    localStorage.setItem(DIET_STORAGE_KEY, JSON.stringify({ ...choices, [userId]: choice }))
+    await saveNotificationDietChoice(
+      userId,
+      choice === 'spicy' ? 'stimulating' : 'normal',
+    )
     return
   }
 
@@ -55,17 +55,12 @@ export async function saveDietChoice(userId: string, choice: DietChoice): Promis
 
 export function getSavedDietChoice(userId: string): DietChoice | null {
   if (!USE_MOCK_API) return null
-  const choice = readDietChoices()[userId]
-  return choice === 'usual' || choice === 'spicy' ? choice : null
+  const choice = getSavedNotificationDietChoice(userId)
+  if (!choice) return null
+  return choice === 'stimulating' ? 'spicy' : 'usual'
 }
 
 export function clearDemoDietChoice(userId: string): void {
   if (!USE_MOCK_API) return
-
-  const choices = readDietChoices()
-  if (!(userId in choices)) return
-
-  const nextChoices = { ...choices }
-  delete nextChoices[userId]
-  localStorage.setItem(DIET_STORAGE_KEY, JSON.stringify(nextChoices))
+  clearDemoNotificationDietChoice(userId)
 }

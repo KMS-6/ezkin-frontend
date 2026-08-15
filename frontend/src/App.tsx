@@ -12,10 +12,12 @@ import { ScanPage } from './pages/ScanPage'
 import { SosPage } from './pages/SosPage'
 import { ShelfPage } from './pages/ShelfPage'
 import { SplashPage } from './pages/SplashPage'
+import { AndroidNotificationCoordinator } from './features/notifications/AndroidNotificationCoordinator'
 
 function App() {
   return (
     <BrowserRouter>
+      <AndroidNotificationCoordinator />
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<SplashPage />} />

@@ -1,12 +1,13 @@
 import { additionalEnvironmentMock, additionalLifestyleMock } from '../mocks/lifeLog'
-import type { DietChoice } from '../types/briefing'
 import type {
   LifeLogConnectionStatus,
   LifeLogEntry,
   TodayLifeLog,
 } from '../types/lifeLog'
-import { getSavedDietChoice, getTodayBriefing } from './briefingService'
+import { getTodayBriefing } from './briefingService'
 import { getOnboardingProfile } from './onboardingService'
+import { getTodayQuickInput } from './quickInputService'
+import type { NotificationDietChoice, WaterChoice } from '../types/androidNotification'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -20,8 +21,16 @@ function automaticEntry(entry: Omit<LifeLogEntry, 'source' | 'sourceLabel'>): Li
   }
 }
 
-function dietLabel(choice: DietChoice): string {
-  return choice === 'spicy' ? '조금 자극적' : '평소처럼'
+function dietLabel(choice: NotificationDietChoice): string {
+  if (choice === 'clean') return '클린'
+  if (choice === 'normal') return '보통'
+  return '자극적'
+}
+
+function waterLabel(choice: WaterChoice): string {
+  if (choice === 'under_3') return '3잔 미만'
+  if (choice === '3_to_5') return '3~5잔'
+  return '5잔 이상'
 }
 
 async function request<T>(path: string): Promise<T> {
@@ -47,25 +56,37 @@ export async function getConnectionStatus(userId: string): Promise<LifeLogConnec
 }
 
 export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry[]> {
-  const choice = getSavedDietChoice(userId)
-  if (!choice) return []
+  const quickInput = getTodayQuickInput(userId)
+  const dietChoice = quickInput?.dietChoice
+  const waterChoice = quickInput?.waterChoice
 
-  return [{
-    id: 'diet',
-    type: 'diet',
-    label: '오늘 식단',
-    value: dietLabel(choice),
-    description: '이미 오늘 케어에 반영했어요.',
-    source: 'manual',
-    sourceLabel: '직접 알려줌',
-  }]
+  return [
+    ...(waterChoice ? [{
+      id: 'water',
+      type: 'water' as const,
+      label: '오늘 물',
+      value: waterLabel(waterChoice),
+      description: '오늘 알려준 내용이에요.',
+      source: 'manual' as const,
+      sourceLabel: '직접 알려줌',
+    }] : []),
+    ...(dietChoice ? [{
+      id: 'diet',
+      type: 'diet' as const,
+      label: '오늘 식단',
+      value: dietLabel(dietChoice),
+      description: '이미 오늘 케어에 반영했어요.',
+      source: 'manual' as const,
+      sourceLabel: '직접 알려줌',
+    }] : []),
+  ]
 }
 
 export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
   if (!USE_MOCK_API) return request<TodayLifeLog>('/life-logs/today')
 
   const [briefing, connections, manualEntries] = await Promise.all([
-    getTodayBriefing(),
+    getTodayBriefing(userId),
     getConnectionStatus(userId),
     getTodayManualInputs(userId),
   ])

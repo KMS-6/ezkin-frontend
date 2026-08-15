@@ -1,3 +1,5 @@
+import type { NotificationDietChoice } from './androidNotification'
+
 export type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
 
 export interface WeatherSummary {
@@ -37,7 +39,7 @@ export interface BriefingData {
   metrics: BriefingMetric[]
   syncedSources: string[]
   syncedCount: number
-  dietChoice?: DietChoice
+  dietChoice?: NotificationDietChoice
 }
 
 export type DietChoice = 'usual' | 'spicy'

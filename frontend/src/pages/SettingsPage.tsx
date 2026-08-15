@@ -19,6 +19,7 @@ import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
 import { DemoScenarioSwitch } from '../features/demo/DemoScenarioSwitch'
 import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
+import { AndroidNotificationTestSection } from '../features/notifications/AndroidNotificationTestSection'
 import { concernOptions } from '../mocks/onboarding'
 import {
   connectHealthData,
@@ -132,6 +133,8 @@ export function SettingsPage() {
         </div>
 
         <DemoScenarioSwitch userId={user.id} />
+
+        <AndroidNotificationTestSection userId={user.id} />
 
       </PageContainer>
 

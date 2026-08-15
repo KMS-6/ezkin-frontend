@@ -12,7 +12,9 @@ import { Card } from '../../../components/ui/Card'
 import type { LifeLogEntry, LifeLogMetricType } from '../../../types/lifeLog'
 import { cn } from '../../../utils/cn'
 
-const metricIcons: Record<Exclude<LifeLogMetricType, 'diet'>, LucideIcon> = {
+type AutomaticMetricType = Exclude<LifeLogMetricType, 'diet' | 'water'>
+
+const metricIcons: Record<AutomaticMetricType, LucideIcon> = {
   sleep: Moon,
   steps: Footprints,
   rhythm: Clock3,
@@ -35,7 +37,7 @@ export function LifeLogMetricGroup({
     <Card className="overflow-hidden">
       <div className={cn(layout === 'grid' && 'grid grid-cols-2')}>
         {entries.map((entry, index) => {
-          const Icon = metricIcons[entry.type as Exclude<LifeLogMetricType, 'diet'>]
+          const Icon = metricIcons[entry.type as AutomaticMetricType]
           const isRightColumn = layout === 'grid' && index % 2 === 1
           const hasPreviousRow = layout === 'grid' && index >= 2
 

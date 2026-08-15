@@ -29,7 +29,7 @@ export function BriefingPage() {
 
     try {
       const [briefingData, routineData] = await Promise.all([
-        getTodayBriefing(),
+        getTodayBriefing(user.id),
         getTodayRoutineForUser(user.id),
       ])
       setBriefing(briefingData)

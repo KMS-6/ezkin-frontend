@@ -8,6 +8,7 @@ export type LifeLogMetricType =
   | 'humidity'
   | 'uv'
   | 'pm25'
+  | 'water'
   | 'diet'
 
 export interface LifeLogEntry {
