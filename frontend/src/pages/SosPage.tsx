@@ -8,8 +8,13 @@ import { SOSQuickQuestions } from '../features/sos/components/SOSQuickQuestions'
 import { SOSTypingIndicator } from '../features/sos/components/SOSTypingIndicator'
 import { useAuth } from '../features/auth/authContextValue'
 import { getSOSContext } from '../services/sosContextService'
-import { sendSOSMessage } from '../services/sosService'
+import { SOSServiceError, sendSOSMessage } from '../services/sosService'
 import type { SOSContext, SOSMessage } from '../types/sos'
+
+interface FailedSOSRequest {
+  message: string
+  errorMessage: string
+}
 
 function createMessage(role: SOSMessage['role'], content: string): SOSMessage {
   return {
@@ -26,7 +31,7 @@ export function SosPage() {
   const [messages, setMessages] = useState<SOSMessage[]>([])
   const [draft, setDraft] = useState('')
   const [isSending, setIsSending] = useState(false)
-  const [failedMessage, setFailedMessage] = useState<string | null>(null)
+  const [failedRequest, setFailedRequest] = useState<FailedSOSRequest | null>(null)
   const requestInFlightRef = useRef(false)
   const conversationEndRef = useRef<HTMLDivElement>(null)
 
@@ -49,14 +54,14 @@ export function SosPage() {
 
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [failedMessage, isSending, messages])
+  }, [failedRequest, isSending, messages])
 
   const requestAnswer = useCallback(async (message: string, appendUserMessage: boolean) => {
     const trimmedMessage = message.trim()
     if (!user || !trimmedMessage || requestInFlightRef.current) return false
 
     requestInFlightRef.current = true
-    setFailedMessage(null)
+    setFailedRequest(null)
     setIsSending(true)
     if (appendUserMessage) {
       setMessages((current) => [...current, createMessage('user', trimmedMessage)])
@@ -71,8 +76,13 @@ export function SosPage() {
       })
       setMessages((current) => [...current, createMessage('assistant', response.message)])
       return true
-    } catch {
-      setFailedMessage(trimmedMessage)
+    } catch (error) {
+      setFailedRequest({
+        message: trimmedMessage,
+        errorMessage: error instanceof SOSServiceError && error.code === 'SAFETY_CHECK_FAILED'
+          ? '지금은 답변을 준비하지 못했어요.\n잠시 후 다시 시도해 주세요.'
+          : '답변을 불러오지 못했어요.',
+      })
       return false
     } finally {
       requestInFlightRef.current = false
@@ -92,7 +102,7 @@ export function SosPage() {
   }
 
   const retry = () => {
-    if (failedMessage) void requestAnswer(failedMessage, false)
+    if (failedRequest) void requestAnswer(failedRequest.message, false)
   }
 
   return (
@@ -106,7 +116,7 @@ export function SosPage() {
         </header>
 
         <div className="flex-1 pt-5">
-          {messages.length === 0 && !isSending && !failedMessage && (
+          {messages.length === 0 && !isSending && !failedRequest && (
             <SOSQuickQuestions disabled={isSending} onSelect={selectQuickQuestion} />
           )}
 
@@ -115,10 +125,10 @@ export function SosPage() {
               <SOSMessageBubble key={message.id} message={message} />
             ))}
             {isSending && <SOSTypingIndicator />}
-            {failedMessage && !isSending && (
+            {failedRequest && !isSending && (
               <div className="flex items-end gap-2" role="alert">
                 <div className="max-w-[82%] rounded-[16px] rounded-bl-[5px] border border-ez-border bg-white px-3.5 py-3 shadow-card">
-                  <p className="text-[13px] text-ez-text">답변을 불러오지 못했어요.</p>
+                  <p className="whitespace-pre-line text-[13px] leading-5 text-ez-text">{failedRequest.errorMessage}</p>
                   <button
                     type="button"
                     onClick={retry}

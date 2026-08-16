@@ -5,6 +5,7 @@ import type {
   SkinType,
 } from './onboarding'
 import type { ProductCategory, ProductRecommendationStatus } from './product'
+import type { QuickCareSafetyAction } from './quickCare'
 
 export type SOSMessageRole = 'user' | 'assistant'
 export type SOSSafetyLevel = 'normal' | 'caution' | 'urgent'
@@ -55,4 +56,6 @@ export interface SendSOSMessageRequest {
 export interface SendSOSMessageResponse {
   message: string
   safetyLevel?: SOSSafetyLevel
+  safetyGateAction?: QuickCareSafetyAction
+  professionalHelpSuggested?: boolean
 }

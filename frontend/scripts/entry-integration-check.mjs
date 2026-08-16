@@ -45,6 +45,8 @@ const server = await createServer({
   logLevel: 'silent',
   define: {
     'import.meta.env.VITE_ENABLE_DEMO_SCENARIO': JSON.stringify('true'),
+    'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
+    'import.meta.env.VITE_USE_QUICK_CARE_API': JSON.stringify('true'),
   },
   server: { middlewareMode: true },
 })
@@ -66,6 +68,8 @@ try {
   const scanCountdown = await server.ssrLoadModule('/src/features/scan/scanCountdown.ts')
   const healthMetrics = await server.ssrLoadModule('/src/utils/healthMetrics.ts')
   const weatherConnection = await server.ssrLoadModule('/src/services/weatherConnectionService.ts')
+  const quickCare = await server.ssrLoadModule('/src/services/quickCareService.ts')
+  const sosService = await server.ssrLoadModule('/src/services/sosService.ts')
 
   const automaticUser = await auth.getEntryUser()
   const freshNormalUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
@@ -179,6 +183,88 @@ try {
   assert(!('timeline' in patternC) && !('target_skin_event' in patternC) && !('next_action' in patternC), 'frontend-only Pattern fields remain')
   assert(sosC.userId === userC.id && sosC.products.length > 0, 'C SOS context is incomplete')
   assert(healthMetrics.getAvailableHealthMetricLabels({ sleep_hours: true, hrv_ms: true, active_energy_kcal: true }).join(',') === '수면,HRV,활동', 'optional active energy cannot be represented')
+
+  let mockSafetyCalls = 0
+  const mockSOSResponse = await sosService.resolveSOSMessageWithSafetyGate({ message: '레티놀 써도 돼?', context: sosC }, false, {
+    safetyCheck: async () => {
+      mockSafetyCalls += 1
+      throw new Error('mock mode must not call Quick Care')
+    },
+  })
+  assert(mockSafetyCalls === 0 && mockSOSResponse.message.includes('레티놀'), 'mock mode did not preserve the existing SOS response flow')
+
+  const originalFetch = globalThis.fetch
+  let dedicatedFlagRequestUrl = ''
+  let dedicatedFlagResponse = null
+  try {
+    globalThis.fetch = async (input) => {
+      dedicatedFlagRequestUrl = String(input)
+      return new Response(JSON.stringify({
+        action: 'stop_ai_guidance',
+        reply: '전용 Quick Care safety gate 응답',
+        professional_help_suggested: true,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    dedicatedFlagResponse = await sosService.sendSOSMessage({ message: '긴급한 증상이 있어', context: sosC })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  assert(dedicatedFlagRequestUrl.endsWith('/api/v1/quick-care/safety-check') && dedicatedFlagResponse?.message === '전용 Quick Care safety gate 응답', 'dedicated Quick Care flag did not trigger the live safety-check while global mock mode was enabled')
+
+  let liveRequestUrl = ''
+  let liveRequestBody = null
+  let stopGeneralCalls = 0
+  const stopSOSResponse = await sosService.resolveSOSMessageWithSafetyGate({ message: '증상이 너무 심해', context: sosC }, true, {
+    safetyCheck: (message) => quickCare.checkQuickCareSafety(message, {
+      baseUrl: 'http://127.0.0.1:8000/api/v1',
+      fetcher: async (input, init) => {
+        liveRequestUrl = String(input)
+        liveRequestBody = JSON.parse(String(init?.body))
+        return new Response(JSON.stringify({
+          action: 'stop_ai_guidance',
+          reply: '지금은 일반 안내를 멈추고 전문가의 도움을 확인해주세요.',
+          professional_help_suggested: true,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      },
+    }),
+    generalResponder: () => {
+      stopGeneralCalls += 1
+      return { message: '이 응답은 표시되면 안 돼요.' }
+    },
+  })
+  assert(liveRequestUrl === 'http://127.0.0.1:8000/api/v1/quick-care/safety-check' && liveRequestBody?.message === '증상이 너무 심해', 'live mode did not POST the Quick Care safety-check contract')
+  assert(stopGeneralCalls === 0 && stopSOSResponse.message === '지금은 일반 안내를 멈추고 전문가의 도움을 확인해주세요.', 'stop_ai_guidance continued the general chatbot')
+  assert(stopSOSResponse.professionalHelpSuggested === true, 'professional_help_suggested was not preserved')
+
+  let continueGeneralCalls = 0
+  const continuedSOSResponse = await sosService.resolveSOSMessageWithSafetyGate({ message: '오늘 건조해', context: sosC }, true, {
+    safetyCheck: async () => ({
+      action: 'continue_general_guidance',
+      reply: '일반 안내를 계속할 수 있어요.',
+      professional_help_suggested: false,
+    }),
+    generalResponder: () => {
+      continueGeneralCalls += 1
+      return { message: '기존 SOS 일반 안내' }
+    },
+  })
+  assert(continueGeneralCalls === 1 && continuedSOSResponse.message === '기존 SOS 일반 안내', 'continue_general_guidance did not continue the existing SOS responder')
+
+  let failedSafetyError = null
+  let failedGeneralCalls = 0
+  try {
+    await sosService.resolveSOSMessageWithSafetyGate({ message: '확인해줘', context: sosC }, true, {
+      safetyCheck: async () => { throw new Error('network failed') },
+      generalResponder: () => {
+        failedGeneralCalls += 1
+        return { message: '가짜 안전 결과' }
+      },
+    })
+  } catch (error) {
+    failedSafetyError = error
+  }
+  assert(failedSafetyError?.code === 'SAFETY_CHECK_FAILED' && failedGeneralCalls === 0, 'failed safety-check silently produced a fake safe response')
+  assert(sosService.isQuickCareApiEnabled('false') === false && sosService.isQuickCareApiEnabled('true') === true, 'VITE_USE_QUICK_CARE_API string parsing is incorrect')
 
   const reopenedReference = skinScan.getRecentTriggerAnalysisReference(userC.id)
   assert(reopenedReference?.scanId === 'scn_c1_20', 'C previous Pattern reference is missing')
@@ -329,6 +415,9 @@ try {
   const settingsPageSource = await readFile(new URL('../src/pages/SettingsPage.tsx', import.meta.url), 'utf8')
   const lifeLogPageSource = await readFile(new URL('../src/pages/LifeLogPage.tsx', import.meta.url), 'utf8')
   const weatherSheetSource = await readFile(new URL('../src/features/weather/components/WeatherConnectionSheet.tsx', import.meta.url), 'utf8')
+  const sosPageSource = await readFile(new URL('../src/pages/SOSPage.tsx', import.meta.url), 'utf8')
+  const quickCareServiceSource = await readFile(new URL('../src/services/quickCareService.ts', import.meta.url), 'utf8')
+  const sosServiceSource = await readFile(new URL('../src/services/sosService.ts', import.meta.url), 'utf8')
   assert(['평소대로', '매운 음식', '야식'].every((label) => nativeHelperSource.includes(label)), 'native diet action labels are incomplete')
   assert(['"normal"', '"spicy"', '"late_night_meal"'].every((value) => nativeReceiverSource.includes(value)), 'native pending diet values do not match the final contract')
   assert(!/ACTION_DIET_CLEAN|ACTION_DIET_STIMULATING/.test(`${nativeHelperSource}${nativeReceiverSource}`), 'legacy native diet actions remain active')
@@ -349,6 +438,9 @@ try {
   assert(settingsPageSource.includes("{connected ? '연결됨' : '연결하기'}") && settingsPageSource.includes('inline-flex shrink-0 items-center gap-1 whitespace-nowrap'), 'connection rows do not share one non-wrapping status/action treatment')
   assert(settingsPageSource.includes('onClick={onOpenHealthConnection}') && settingsPageSource.includes('onClick={onOpenWeatherConnection}'), 'Settings connection rows are not both clickable')
   assert(weatherSheetSource.includes('날씨 데이터를 연결할까요?') && weatherSheetSource.includes('연결하지 않아도 다른 기능은 그대로 사용할 수 있어요.'), 'weather consent UI is missing optional-connection guidance')
+  assert(quickCareServiceSource.includes("apiRequest<unknown>('/quick-care/safety-check'") && !sosPageSource.includes('fetch('), 'Quick Care does not follow UI → service → api client')
+  assert(sosServiceSource.includes('import.meta.env.VITE_USE_QUICK_CARE_API') && !sosServiceSource.includes('VITE_USE_MOCK_API'), 'Quick Care mode selection still depends on the global mock flag')
+  assert(sosPageSource.includes('지금은 답변을 준비하지 못했어요.\\n잠시 후 다시 시도해 주세요.') && sosPageSource.includes('failedRequest.message'), 'SOS safety-check failure does not preserve the polished retryable message')
 
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/shelf/ceramide-cream', previousPathname: '/shelf', canGoBack: true }) === 'back', 'product detail back did not use route history')
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/settings', previousPathname: '/home', canGoBack: true }) === 'back', 'settings back did not use route history')
@@ -370,6 +462,7 @@ try {
   console.log('PASS API-shaped Report and Pattern Analysis remain separate')
   console.log('PASS final diet enum, lossless legacy migration, native actions, and shared daily record')
   console.log('PASS fast scan countdown, inline/reopen Pattern flow, Environment columns, and Watch contracts')
+  console.log('PASS Quick Care live safety gate, mock continuation, stop/continue actions, and retryable failure')
 } finally {
   await server.close()
 }
