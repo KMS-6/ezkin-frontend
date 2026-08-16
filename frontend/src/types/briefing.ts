@@ -1,4 +1,5 @@
 import type { DietChoice } from './androidNotification'
+import type { CareContextPreviewResponse } from './careContext'
 
 export type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
 
@@ -38,7 +39,9 @@ export interface BriefingData {
   summary: string
   careTip: string
   metrics: BriefingMetric[]
+  contributingFactors?: BriefingMetric[]
   syncedSources: string[]
   syncedCount: number
   dietChoice?: DietChoice
+  careContext?: CareContextPreviewResponse
 }

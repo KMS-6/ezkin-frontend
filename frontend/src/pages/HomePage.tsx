@@ -7,7 +7,7 @@ import { Card } from '../components/ui/Card'
 import { HeroCard } from '../components/ui/HeroCard'
 import { QuickChoice } from '../components/ui/QuickChoice'
 import { useAuth } from '../features/auth/authContextValue'
-import { getTodayBriefing } from '../services/briefingService'
+import { applyCareContextToBriefing, getTodayBriefing } from '../services/briefingService'
 import { getTodayRoutineForUser } from '../services/productService'
 import { getLatestSkinScanResult } from '../services/skinScanService'
 import {
@@ -61,6 +61,9 @@ export function HomePage() {
       if (!isActive) return
       setBriefing(briefingData)
       setTodayRoutine(routineData)
+      void applyCareContextToBriefing(briefingData).then((careContextBriefing) => {
+        if (isActive) setBriefing(careContextBriefing)
+      })
     }).catch(() => {
       if (isActive) setLoadError(true)
     })
@@ -259,8 +262,9 @@ export function HomePage() {
 }
 
 function CompactSignalSummary({ briefing, latestScan }: { briefing: BriefingData; latestScan: SkinScanResult | null }) {
-  const health = briefing.metrics.filter((metric) => metric.source === 'health')
-  const environment = briefing.metrics.filter((metric) => metric.source === 'environment')
+  const factors = briefing.contributingFactors ?? briefing.metrics
+  const health = factors.filter((metric) => metric.source === 'health')
+  const environment = factors.filter((metric) => metric.source === 'environment')
   const signals = [
     ...(health.length > 0 ? [{ label: 'Health', value: health.map((metric) => `${metric.label} ${metric.value}`).join(' · ') }] : []),
     ...(environment.length > 0 ? [{ label: '환경', value: environment.map((metric) => `${metric.label} ${metric.value}`).join(' · ') }] : []),

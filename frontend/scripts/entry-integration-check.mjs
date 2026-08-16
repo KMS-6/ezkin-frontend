@@ -47,6 +47,7 @@ const server = await createServer({
     'import.meta.env.VITE_ENABLE_DEMO_SCENARIO': JSON.stringify('true'),
     'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
     'import.meta.env.VITE_USE_QUICK_CARE_API': JSON.stringify('true'),
+    'import.meta.env.VITE_USE_CARE_CONTEXT_API': JSON.stringify('false'),
   },
   server: { middlewareMode: true },
 })
@@ -69,6 +70,7 @@ try {
   const healthMetrics = await server.ssrLoadModule('/src/utils/healthMetrics.ts')
   const weatherConnection = await server.ssrLoadModule('/src/services/weatherConnectionService.ts')
   const quickCare = await server.ssrLoadModule('/src/services/quickCareService.ts')
+  const careContext = await server.ssrLoadModule('/src/services/careContextService.ts')
   const sosService = await server.ssrLoadModule('/src/services/sosService.ts')
 
   const automaticUser = await auth.getEntryUser()
@@ -163,6 +165,110 @@ try {
   const patternC = await analysis.getTriggerAnalysisDetail(userC.id, 'scn_c1_20')
   const sosC = await sosContext.getSOSContext(userC.id)
   const briefingC = await briefing.getTodayBriefing(userC.id)
+
+  let careContextRequestUrl = ''
+  let careContextRequestBody = null
+  const directCareContext = await careContext.previewCareContext({
+    humidity: 23,
+    uv_index: 2.5,
+    user_reports_discomfort: false,
+  }, {
+    baseUrl: 'http://127.0.0.1:8000/api/v1',
+    fetcher: async (input, init) => {
+      careContextRequestUrl = String(input)
+      careContextRequestBody = JSON.parse(String(init?.body))
+      return new Response(JSON.stringify({
+        date: '2026-08-17',
+        care_mode: 'moisture_focused',
+        observed_factors: [{ type: 'low_humidity', message: '오늘 습도가 낮아요.' }],
+        notice: '생활·환경 데이터를 활용한 비의료적 참고 정보입니다.',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    },
+  })
+  assert(careContextRequestUrl === 'http://127.0.0.1:8000/api/v1/care-contexts/preview', 'Care Context did not use the centralized API path')
+  assert(careContextRequestBody?.humidity === 23 && careContextRequestBody?.uv_index === 2.5 && careContextRequestBody?.user_reports_discomfort === false, 'Care Context request contract is incorrect')
+  assert(directCareContext.care_mode === 'moisture_focused', 'low humidity Care Context mode was not preserved')
+
+  let timedOutCareContext = false
+  let careContextAbortObserved = false
+  try {
+    await careContext.previewCareContext({
+      humidity: 23,
+      user_reports_discomfort: false,
+    }, {
+      baseUrl: 'http://127.0.0.1:8000/api/v1',
+      timeoutMs: 10,
+      fetcher: async (_input, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          careContextAbortObserved = true
+          reject(new DOMException('aborted', 'AbortError'))
+        }, { once: true })
+      }),
+    })
+  } catch {
+    timedOutCareContext = true
+  }
+  assert(timedOutCareContext && careContextAbortObserved, 'Care Context timeout did not abort the pending request')
+
+  let briefingCareRequest = null
+  const careEnabledBriefingC = await briefing.applyCareContextToBriefing(briefingC, {
+    enabled: true,
+    requestPreview: async (request) => {
+      briefingCareRequest = request
+      return directCareContext
+    },
+  })
+  assert(briefingCareRequest?.humidity === 23 && briefingCareRequest?.uv_index === 2.5 && briefingCareRequest?.user_reports_discomfort === false, 'Briefing fabricated or omitted Care Context input')
+  assert(careEnabledBriefingC.metrics === briefingC.metrics, 'Care Context replaced raw Briefing metrics used by Life Log')
+  assert(careEnabledBriefingC.contributingFactors.some((item) => item.id === 'hrv'), 'Care Context removed existing Health factors')
+  assert(careEnabledBriefingC.contributingFactors.some((item) => item.id === 'humidity' && item.description === '오늘 습도가 낮아요.'), 'Briefing environment factor did not come from backend observed_factors')
+  assert(careEnabledBriefingC.careContext?.care_mode === 'moisture_focused', 'Briefing did not preserve backend care_mode')
+
+  const uvFocusedBriefing = await briefing.applyCareContextToBriefing(briefingA, {
+    enabled: true,
+    requestPreview: async (request) => {
+      assert(request.uv_index === 7, 'current UV value was not sent to Care Context')
+      return {
+        date: '2026-08-17',
+        care_mode: 'uv_focused',
+        observed_factors: [{ type: 'high_uv', message: '오늘 자외선 지수가 높아요.' }],
+        notice: '생활·환경 데이터를 활용한 비의료적 참고 정보입니다.',
+      }
+    },
+  })
+  assert(uvFocusedBriefing.careContext?.care_mode === 'uv_focused' && uvFocusedBriefing.contributingFactors.some((item) => item.id === 'uv'), 'high UV Care Context was not integrated')
+
+  const noEnvironmentBriefing = {
+    ...briefingC,
+    metrics: briefingC.metrics.filter((item) => item.source === 'health'),
+  }
+  let missingEnvironmentCalls = 0
+  const missingEnvironmentResult = await briefing.applyCareContextToBriefing(noEnvironmentBriefing, {
+    enabled: true,
+    requestPreview: async () => {
+      missingEnvironmentCalls += 1
+      throw new Error('must not be called')
+    },
+  })
+  assert(missingEnvironmentCalls === 0 && missingEnvironmentResult === noEnvironmentBriefing, 'missing environment values were fabricated to call Care Context')
+
+  const failedCareContextBriefing = await briefing.applyCareContextToBriefing(briefingC, {
+    enabled: true,
+    requestPreview: async () => { throw new Error('backend unavailable') },
+  })
+  assert(failedCareContextBriefing.contributingFactors.every((item) => item.source === 'health'), 'failed Care Context left fake backend environment factors')
+  assert(failedCareContextBriefing.contributingFactors.some((item) => item.id === 'sleep') && failedCareContextBriefing.metrics.some((item) => item.id === 'humidity'), 'failed Care Context blocked Health or removed raw environment data')
+
+  let disabledCareContextCalls = 0
+  const careDisabledBriefing = await briefing.applyCareContextToBriefing(briefingC, {
+    enabled: false,
+    requestPreview: async () => {
+      disabledCareContextCalls += 1
+      return directCareContext
+    },
+  })
+  assert(careDisabledBriefing === briefingC && disabledCareContextCalls === 0, 'disabled Care Context changed existing mock Briefing behavior')
+  assert(careContext.isCareContextApiEnabled('false') === false && careContext.isCareContextApiEnabled('true') === true, 'VITE_USE_CARE_CONTEXT_API string parsing is incorrect')
 
   assert(userC.id === scenario.DEMO_C_USER_ID && profileC.nickname === '최민준', 'C did not map to C1')
   assert(briefingC.skinHeadline === '오늘은 피부가 조금 예민해 보여요.', 'C1 Home headline overstates a measured skin-barrier condition')
@@ -418,6 +524,9 @@ try {
   const sosPageSource = await readFile(new URL('../src/pages/SOSPage.tsx', import.meta.url), 'utf8')
   const quickCareServiceSource = await readFile(new URL('../src/services/quickCareService.ts', import.meta.url), 'utf8')
   const sosServiceSource = await readFile(new URL('../src/services/sosService.ts', import.meta.url), 'utf8')
+  const careContextServiceSource = await readFile(new URL('../src/services/careContextService.ts', import.meta.url), 'utf8')
+  const briefingServiceSource = await readFile(new URL('../src/services/briefingService.ts', import.meta.url), 'utf8')
+  const homePageSource = await readFile(new URL('../src/pages/HomePage.tsx', import.meta.url), 'utf8')
   assert(['평소대로', '매운 음식', '야식'].every((label) => nativeHelperSource.includes(label)), 'native diet action labels are incomplete')
   assert(['"normal"', '"spicy"', '"late_night_meal"'].every((value) => nativeReceiverSource.includes(value)), 'native pending diet values do not match the final contract')
   assert(!/ACTION_DIET_CLEAN|ACTION_DIET_STIMULATING/.test(`${nativeHelperSource}${nativeReceiverSource}`), 'legacy native diet actions remain active')
@@ -440,6 +549,10 @@ try {
   assert(weatherSheetSource.includes('날씨 데이터를 연결할까요?') && weatherSheetSource.includes('연결하지 않아도 다른 기능은 그대로 사용할 수 있어요.'), 'weather consent UI is missing optional-connection guidance')
   assert(quickCareServiceSource.includes("apiRequest<unknown>('/quick-care/safety-check'") && !sosPageSource.includes('fetch('), 'Quick Care does not follow UI → service → api client')
   assert(sosServiceSource.includes('import.meta.env.VITE_USE_QUICK_CARE_API') && !sosServiceSource.includes('VITE_USE_MOCK_API'), 'Quick Care mode selection still depends on the global mock flag')
+  assert(careContextServiceSource.includes('import.meta.env.VITE_USE_CARE_CONTEXT_API') && !careContextServiceSource.includes('VITE_USE_MOCK_API'), 'Care Context mode selection depends on the global mock flag')
+  assert(careContextServiceSource.includes("apiRequest<unknown>('/care-contexts/preview'") && !briefingServiceSource.includes("fetch(`${API_BASE_URL}/care-contexts"), 'Care Context does not follow service to api client architecture')
+  assert(careContextServiceSource.includes('CARE_CONTEXT_TIMEOUT_MS = 1_500') && careContextServiceSource.includes('controller.abort()'), 'Care Context does not enforce the 1.5 second abort timeout')
+  assert(homePageSource.indexOf('setBriefing(briefingData)') < homePageSource.lastIndexOf('applyCareContextToBriefing(briefingData)'), 'Home waits for Care Context before rendering the base Briefing')
   assert(sosPageSource.includes('지금은 답변을 준비하지 못했어요.\\n잠시 후 다시 시도해 주세요.') && sosPageSource.includes('failedRequest.message'), 'SOS safety-check failure does not preserve the polished retryable message')
 
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/shelf/ceramide-cream', previousPathname: '/shelf', canGoBack: true }) === 'back', 'product detail back did not use route history')
@@ -463,6 +576,7 @@ try {
   console.log('PASS final diet enum, lossless legacy migration, native actions, and shared daily record')
   console.log('PASS fast scan countdown, inline/reopen Pattern flow, Environment columns, and Watch contracts')
   console.log('PASS Quick Care live safety gate, mock continuation, stop/continue actions, and retryable failure')
+  console.log('PASS Care Context dedicated flag, typed API, Briefing factors, missing data, and non-blocking failure')
 } finally {
   await server.close()
 }

@@ -1,8 +1,10 @@
 import { todayBriefingMock } from '../mocks/briefing'
 import { getMockPersona } from '../mocks/personas'
 import type { BriefingData } from '../types/briefing'
+import type { CareContextPreviewRequest, CareContextPreviewResponse } from '../types/careContext'
 import { getSavedDietChoice } from './quickInputService'
 import { getOnboardingProfile } from './onboardingService'
+import { isCareContextApiEnabled, previewCareContext } from './careContextService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -26,7 +28,101 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
+type CareContextRequester = (
+  request: CareContextPreviewRequest,
+) => Promise<CareContextPreviewResponse>
+
+interface CareContextBriefingOptions {
+  enabled?: boolean
+  requestPreview?: CareContextRequester
+  userReportsDiscomfort?: boolean
+}
+
+function getMetricNumber(briefing: BriefingData, id: 'humidity' | 'uv'): number | undefined {
+  const metric = briefing.metrics.find((item) => item.id === id && item.source === 'environment')
+  if (!metric) return undefined
+  const value = Number.parseFloat(metric.value.replace('%', '').trim())
+  return Number.isFinite(value) ? value : undefined
+}
+
+function replaceEnvironmentFactors(
+  briefing: BriefingData,
+  environmentMetrics: BriefingData['metrics'],
+  careContext?: CareContextPreviewResponse,
+): BriefingData {
+  const healthMetrics = briefing.metrics.filter((metric) => metric.source === 'health')
+  return {
+    ...briefing,
+    contributingFactors: [...healthMetrics, ...environmentMetrics],
+    careContext,
+  }
+}
+
+function mapObservedEnvironmentFactors(
+  careContext: CareContextPreviewResponse,
+  humidity: number | undefined,
+  uvIndex: number | undefined,
+): BriefingData['metrics'] {
+  const metrics = new Map<string, BriefingData['metrics'][number]>()
+
+  careContext.observed_factors.forEach((factor) => {
+    const type = factor.type.toLowerCase()
+    if (humidity !== undefined && type.includes('humidity')) {
+      metrics.set('humidity', {
+        id: 'humidity',
+        label: '습도',
+        value: `${humidity}%`,
+        icon: 'humidity',
+        source: 'environment',
+        description: factor.message,
+      })
+    }
+    if (uvIndex !== undefined && type.includes('uv')) {
+      metrics.set('uv', {
+        id: 'uv',
+        label: 'UV',
+        value: String(uvIndex),
+        icon: 'uv',
+        source: 'environment',
+        description: factor.message,
+      })
+    }
+  })
+
+  return [...metrics.values()]
+}
+
+export async function applyCareContextToBriefing(
+  briefing: BriefingData,
+  options: CareContextBriefingOptions = {},
+): Promise<BriefingData> {
+  const enabled = options.enabled ?? isCareContextApiEnabled()
+  if (!enabled) return briefing
+
+  const humidity = getMetricNumber(briefing, 'humidity')
+  const uvIndex = getMetricNumber(briefing, 'uv')
+  const userReportsDiscomfort = options.userReportsDiscomfort ?? false
+  if (humidity === undefined && uvIndex === undefined && !userReportsDiscomfort) return briefing
+
+  const request: CareContextPreviewRequest = {
+    ...(humidity !== undefined ? { humidity } : {}),
+    ...(uvIndex !== undefined ? { uv_index: uvIndex } : {}),
+    user_reports_discomfort: userReportsDiscomfort,
+  }
+
+  try {
+    const careContext = await (options.requestPreview ?? previewCareContext)(request)
+    return replaceEnvironmentFactors(
+      briefing,
+      mapObservedEnvironmentFactors(careContext, humidity, uvIndex),
+      careContext,
+    )
+  } catch {
+    return replaceEnvironmentFactors(briefing, [])
+  }
+}
+
+async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
   if (USE_MOCK_API) {
     const profile = userId ? await getOnboardingProfile(userId) : null
     const persona = userId ? getMockPersona(userId) : null
@@ -104,4 +200,11 @@ export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
     })
   }
   return request<BriefingData>('/briefing')
+}
+
+export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
+  const briefing = await getBaseTodayBriefing(userId)
+  return isCareContextApiEnabled()
+    ? replaceEnvironmentFactors(briefing, [])
+    : briefing
 }
