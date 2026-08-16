@@ -28,6 +28,7 @@ import { ProfileStep } from './steps/ProfileStep'
 import { ShelfStep } from './steps/ShelfStep'
 import { SkinStep } from './steps/SkinStep'
 import { WelcomeStep } from './steps/WelcomeStep'
+import { ANDROID_HARDWARE_BACK_EVENT } from '../navigation/androidBackEvent'
 
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -58,6 +59,23 @@ export function OnboardingPage() {
       isActive = false
     }
   }, [user])
+
+  useEffect(() => {
+    const handleAndroidHardwareBack = (event: Event) => {
+      if (!user || !profile || profile.currentStep <= 1) return
+
+      event.preventDefault()
+      const previousStep = (profile.currentStep - 1) as OnboardingStep
+      setProfile((current) => current ? { ...current, currentStep: previousStep } : current)
+      setSaveMessage(null)
+      void saveCurrentStep(user.id, previousStep).catch(() => {
+        setSaveMessage('이전 단계로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
+      })
+    }
+
+    window.addEventListener(ANDROID_HARDWARE_BACK_EVENT, handleAndroidHardwareBack)
+    return () => window.removeEventListener(ANDROID_HARDWARE_BACK_EVENT, handleAndroidHardwareBack)
+  }, [profile, user])
 
   if (!user) return null
   if (loadError) return <OnboardingLoadError message={loadError} />

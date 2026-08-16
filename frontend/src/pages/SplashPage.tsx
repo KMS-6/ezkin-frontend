@@ -3,20 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../components/EZkinLogo'
 import { useAuth } from '../features/auth/authContextValue'
 
-export const SPLASH_DURATION_MS = 950
-
 export function SplashPage() {
   const navigate = useNavigate()
   const { user, isLoading } = useAuth()
 
   useEffect(() => {
     if (isLoading) return
-
-    const timer = window.setTimeout(() => {
-      navigate(user?.onboardingCompleted ? '/home' : '/onboarding', { replace: true })
-    }, SPLASH_DURATION_MS)
-
-    return () => window.clearTimeout(timer)
+    navigate(user?.onboardingCompleted ? '/home' : '/onboarding', { replace: true })
   }, [isLoading, navigate, user?.onboardingCompleted])
 
   return (

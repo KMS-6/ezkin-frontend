@@ -13,11 +13,13 @@ import { SosPage } from './pages/SosPage'
 import { ShelfPage } from './pages/ShelfPage'
 import { SplashPage } from './pages/SplashPage'
 import { AndroidNotificationCoordinator } from './features/notifications/AndroidNotificationCoordinator'
+import { AndroidBackButtonCoordinator } from './features/navigation/AndroidBackButtonCoordinator'
 
 function App() {
   return (
     <BrowserRouter>
       <AndroidNotificationCoordinator />
+      <AndroidBackButtonCoordinator />
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<SplashPage />} />
