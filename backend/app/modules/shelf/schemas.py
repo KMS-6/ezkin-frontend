@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProductType(StrEnum):
@@ -38,6 +38,15 @@ class ShelfProductUpdate(BaseModel):
     opened_at: date | None = None
     expires_at: date | None = None
     is_active: bool | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_string_fields(cls, data: object) -> object:
+        if isinstance(data, dict):
+            for field in ("brand", "product_name"):
+                if field in data and data[field] is None:
+                    raise ValueError(f"{field} cannot be set to null")
+        return data
 
 
 class ShelfProductResponse(BaseModel):
