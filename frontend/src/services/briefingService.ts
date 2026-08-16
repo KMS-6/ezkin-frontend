@@ -1,10 +1,8 @@
 import { todayBriefingMock } from '../mocks/briefing'
-import type { BriefingData, DietChoice } from '../types/briefing'
-import {
-  clearDemoNotificationDietChoice,
-  getSavedNotificationDietChoice,
-  saveNotificationDietChoice,
-} from './quickInputService'
+import { getMockPersona } from '../mocks/personas'
+import type { BriefingData } from '../types/briefing'
+import { getSavedDietChoice } from './quickInputService'
+import { getOnboardingProfile } from './onboardingService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -30,37 +28,80 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
   if (USE_MOCK_API) {
+    const profile = userId ? await getOnboardingProfile(userId) : null
+    const persona = userId ? getMockPersona(userId) : null
+    if (profile && persona) {
+      const healthMetrics: BriefingData['metrics'] = profile.lifeDataConnected && persona.current_health
+        ? [
+            ...(persona.current_health.sleep_hours !== undefined ? [{
+              id: 'sleep', label: '수면', value: `${persona.current_health.sleep_hours}h`, icon: 'sleep' as const,
+              source: 'health' as const,
+              description: persona.health_baseline?.sleep_hours !== undefined
+                ? `평소 ${persona.health_baseline.sleep_hours}시간`
+                : '현재 수면 기록이에요.',
+            }] : []),
+            ...(persona.current_health.hrv_ms !== undefined ? [{
+              id: 'hrv', label: 'HRV', value: `${persona.current_health.hrv_ms} ms`, icon: 'hrv' as const,
+              source: 'health' as const,
+              description: persona.health_baseline?.hrv_ms !== undefined
+                ? `14일 평균 ${persona.health_baseline.hrv_ms}ms보다 낮아요.`
+                : '현재 HRV 기록이에요.',
+            }] : []),
+          ]
+        : []
+      const environmentMetrics: BriefingData['metrics'] = profile.weatherConnected ? [
+        {
+          id: 'humidity', label: '습도', value: `${persona.weather.humidity_percent}%`, icon: 'humidity',
+          source: 'environment', description: `현재 습도 ${persona.weather.humidity_percent}%예요.`,
+        },
+        {
+          id: 'uv', label: 'UV', value: String(persona.weather.uv_index), icon: 'uv',
+          source: 'environment', description: `현재 UV 지수 ${persona.weather.uv_index}예요.`,
+        },
+      ] : []
+      const riskLabels = {
+        moderate: '피부 변화 관찰',
+        high: '자극 가능성 높음',
+        very_high: '오늘은 자극을 줄여요',
+      }
+
+      return {
+        greeting: '좋은 아침이에요',
+        dateLabel: '8월 15일',
+        weather: {
+          temperature: persona.weather.temperature_c,
+          humidity: persona.weather.humidity_percent,
+        },
+        skinHeadline: persona.briefing.headline,
+        riskLabel: riskLabels[persona.briefing.risk_level],
+        summary: persona.briefing.summary,
+        careTip: '오늘 가진 제품으로 필요한 단계만 챙겨요.',
+        metrics: [...healthMetrics, ...environmentMetrics],
+        syncedSources: [
+          ...(healthMetrics.length ? ['수면', 'HRV'] : []),
+          ...(environmentMetrics.length ? ['날씨', 'UV'] : []),
+        ],
+        syncedCount: healthMetrics.length + environmentMetrics.length,
+        ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
+      }
+    }
+
+    const baseMetrics = todayBriefingMock.metrics
+      .filter((metric) => (
+        metric.source === 'health' ? false : profile?.weatherConnected !== false
+      ))
+    const metrics = baseMetrics
+    const summary = profile
+      ? profile.weatherConnected
+        ? '오늘 환경 흐름을 바탕으로 자극을 조금 줄여도 좋아요.'
+        : '오늘은 자극적인 단계를 줄이고 피부를 편안하게 쉬어가세요.'
+      : todayBriefingMock.summary
     return Promise.resolve({
       ...todayBriefingMock,
-      ...(userId ? { dietChoice: getSavedNotificationDietChoice(userId) ?? undefined } : {}),
+      metrics,
+      summary,
+      ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
     })
   }
   return request<BriefingData>('/briefing')
-}
-
-export async function saveDietChoice(userId: string, choice: DietChoice): Promise<void> {
-  if (USE_MOCK_API) {
-    await saveNotificationDietChoice(
-      userId,
-      choice === 'spicy' ? 'stimulating' : 'normal',
-    )
-    return
-  }
-
-  await request<void>('/lifelog/diet', {
-    method: 'POST',
-    body: JSON.stringify({ choice }),
-  })
-}
-
-export function getSavedDietChoice(userId: string): DietChoice | null {
-  if (!USE_MOCK_API) return null
-  const choice = getSavedNotificationDietChoice(userId)
-  if (!choice) return null
-  return choice === 'stimulating' ? 'spicy' : 'usual'
-}
-
-export function clearDemoDietChoice(userId: string): void {
-  if (!USE_MOCK_API) return
-  clearDemoNotificationDietChoice(userId)
 }

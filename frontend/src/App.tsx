@@ -3,7 +3,8 @@ import { ProtectedRoute } from './features/auth/AuthRoute'
 import { OnboardingPage } from './features/onboarding/OnboardingPage'
 import { AppShell } from './layouts/AppShell'
 import { HomePage } from './pages/HomePage'
-import { AnalysisPage } from './pages/AnalysisPage'
+import { AnalysisReportPage } from './pages/AnalysisReportPage'
+import { TriggerAnalysisPage } from './pages/TriggerAnalysisPage'
 import { LifeLogPage } from './pages/LifeLogPage'
 import { BriefingPage } from './pages/BriefingPage'
 import { ProductDetailPage } from './pages/ProductDetailPage'
@@ -37,7 +38,8 @@ function App() {
             <Route path="scan" element={<ScanPage />} />
             <Route path="shelf" element={<ShelfPage />} />
             <Route path="shelf/:id" element={<ProductDetailPage />} />
-            <Route path="analysis" element={<AnalysisPage />} />
+            <Route path="analysis" element={<AnalysisReportPage />} />
+            <Route path="analysis/trigger/:scanId" element={<TriggerAnalysisPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="sos" element={<SosPage />} />
           </Route>

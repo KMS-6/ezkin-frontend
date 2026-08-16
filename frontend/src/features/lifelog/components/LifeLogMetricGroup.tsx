@@ -1,8 +1,8 @@
 import {
-  Clock3,
   CloudSun,
   Droplets,
-  Footprints,
+  Flame,
+  HeartPulse,
   Moon,
   Sun,
   Wind,
@@ -16,8 +16,8 @@ type AutomaticMetricType = Exclude<LifeLogMetricType, 'diet' | 'water'>
 
 const metricIcons: Record<AutomaticMetricType, LucideIcon> = {
   sleep: Moon,
-  steps: Footprints,
-  rhythm: Clock3,
+  hrv: HeartPulse,
+  active_energy_kcal: Flame,
   temperature: CloudSun,
   humidity: Droplets,
   uv: Sun,
@@ -26,20 +26,20 @@ const metricIcons: Record<AutomaticMetricType, LucideIcon> = {
 
 interface LifeLogMetricGroupProps {
   entries: LifeLogEntry[]
-  layout?: 'rows' | 'grid'
+  layout?: 'rows' | 'columns'
+  tone?: 'health' | 'environment'
 }
 
 export function LifeLogMetricGroup({
   entries,
   layout = 'rows',
+  tone = 'health',
 }: LifeLogMetricGroupProps) {
   return (
     <Card className="overflow-hidden">
-      <div className={cn(layout === 'grid' && 'grid grid-cols-2')}>
-        {entries.map((entry, index) => {
+      <div className={cn(layout === 'columns' && 'grid grid-cols-3 divide-x divide-ez-border/70')}>
+        {entries.map((entry) => {
           const Icon = metricIcons[entry.type as AutomaticMetricType]
-          const isRightColumn = layout === 'grid' && index % 2 === 1
-          const hasPreviousRow = layout === 'grid' && index >= 2
 
           return (
             <div
@@ -47,16 +47,17 @@ export function LifeLogMetricGroup({
               className={cn(
                 layout === 'rows'
                   ? 'flex min-h-[68px] items-center gap-3 px-4 py-3 [&+&]:border-t [&+&]:border-ez-border/70'
-                  : 'min-h-[106px] px-4 py-3.5',
-                isRightColumn && 'border-l border-ez-border/70',
-                hasPreviousRow && 'border-t border-ez-border/70',
+                  : 'flex min-h-[112px] min-w-0 flex-col items-center px-2 py-3.5 text-center',
               )}
             >
-              <span className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-ez-primary-soft text-ez-primary">
+              <span className={cn(
+                'grid size-9 shrink-0 place-items-center rounded-[12px]',
+                tone === 'health' ? 'bg-[#e3fbf6] text-[#178873]' : 'bg-[#e8faf5] text-[#178873]',
+              )}>
                 <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
               </span>
 
-              <div className={cn('min-w-0', layout === 'grid' ? 'mt-2' : 'flex-1')}>
+              <div className={cn('min-w-0', layout === 'columns' ? 'mt-2' : 'flex-1')}>
                 <div className={cn(layout === 'rows' && 'flex items-baseline justify-between gap-3')}>
                   <p className="text-[12px] font-medium text-ez-muted">{entry.label}</p>
                   <p className="mt-0.5 text-[15px] font-semibold tracking-[-0.02em] text-ez-text">
@@ -64,7 +65,10 @@ export function LifeLogMetricGroup({
                   </p>
                 </div>
                 {entry.description && layout === 'rows' && (
-                  <p className="mt-0.5 truncate text-[11px] font-normal text-ez-muted">
+                  <p className={cn(
+                    'mt-0.5 text-[11px]',
+                    tone === 'health' ? 'font-medium text-[#287d61]' : 'font-normal text-ez-muted',
+                  )}>
                     {entry.description}
                   </p>
                 )}

@@ -1,4 +1,5 @@
 import type { HealthConnection } from '../types/healthConnection'
+import { getMockPersona } from '../mocks/personas'
 import { getOnboardingProfile, saveConnectionSettings } from './onboardingService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
@@ -6,12 +7,15 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const TOKEN_KEY = 'ezkin:access-token'
 
 const demoMetrics = {
-  sleep: true,
-  steps: true,
-  hrv: true,
-  activity: true,
-  cycle: false,
-  skinTemperature: false,
+  sleep_hours: false,
+  hrv_ms: false,
+  active_energy_kcal: false,
+}
+
+const unavailableMetrics = {
+  sleep_hours: false,
+  hrv_ms: false,
+  active_energy_kcal: false,
 }
 
 function wait(milliseconds: number): Promise<void> {
@@ -39,15 +43,16 @@ export async function getHealthConnection(userId: string): Promise<HealthConnect
   if (!USE_MOCK_API) return request<HealthConnection>('/users/me/health-connection')
 
   const profile = await getOnboardingProfile(userId)
+  const persona = getMockPersona(userId)
+  const availableMetrics = persona ? {
+    sleep_hours: persona.current_health?.sleep_hours !== undefined,
+    hrv_ms: persona.current_health?.hrv_ms !== undefined,
+    active_energy_kcal: persona.current_health?.active_energy_kcal !== undefined,
+  } : demoMetrics
   return {
     provider: 'demo',
     status: profile.lifeDataConnected ? 'connected' : 'not_requested',
-    availableMetrics: profile.lifeDataConnected ? demoMetrics : {
-      sleep: false,
-      steps: false,
-      hrv: false,
-      activity: false,
-    },
+    availableMetrics: profile.lifeDataConnected ? availableMetrics : unavailableMetrics,
   }
 }
 
@@ -63,11 +68,18 @@ export async function connectHealthData(userId: string): Promise<HealthConnectio
     weatherConnected: profile.weatherConnected,
   })
 
+  const persona = getMockPersona(userId)
+  const availableMetrics = persona ? {
+    sleep_hours: persona.current_health?.sleep_hours !== undefined,
+    hrv_ms: persona.current_health?.hrv_ms !== undefined,
+    active_energy_kcal: persona.current_health?.active_energy_kcal !== undefined,
+  } : demoMetrics
+
   return {
     provider: 'demo',
     status: 'connected',
     connectedAt: new Date().toISOString(),
-    availableMetrics: demoMetrics,
+    availableMetrics,
   }
 }
 
@@ -86,11 +98,6 @@ export async function disconnectHealthData(userId: string): Promise<HealthConnec
   return {
     provider: 'demo',
     status: 'not_requested',
-    availableMetrics: {
-      sleep: false,
-      steps: false,
-      hrv: false,
-      activity: false,
-    },
+    availableMetrics: unavailableMetrics,
   }
 }

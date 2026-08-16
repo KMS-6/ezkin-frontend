@@ -1,4 +1,3 @@
-import { additionalEnvironmentMock, additionalLifestyleMock } from '../mocks/lifeLog'
 import type {
   LifeLogConnectionStatus,
   LifeLogEntry,
@@ -7,7 +6,9 @@ import type {
 import { getTodayBriefing } from './briefingService'
 import { getOnboardingProfile } from './onboardingService'
 import { getTodayQuickInput } from './quickInputService'
-import type { NotificationDietChoice, WaterChoice } from '../types/androidNotification'
+import type { WaterChoice } from '../types/androidNotification'
+import { getMockPersona } from '../mocks/personas'
+import { formatDietChoice } from '../utils/dietChoice'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -19,12 +20,6 @@ function automaticEntry(entry: Omit<LifeLogEntry, 'source' | 'sourceLabel'>): Li
     source: 'automatic',
     sourceLabel: '자동',
   }
-}
-
-function dietLabel(choice: NotificationDietChoice): string {
-  if (choice === 'clean') return '클린'
-  if (choice === 'normal') return '보통'
-  return '자극적'
 }
 
 function waterLabel(choice: WaterChoice): string {
@@ -74,7 +69,7 @@ export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry
       id: 'diet',
       type: 'diet' as const,
       label: '오늘 식단',
-      value: dietLabel(dietChoice),
+      value: formatDietChoice(dietChoice),
       description: '이미 오늘 케어에 반영했어요.',
       source: 'manual' as const,
       sourceLabel: '직접 알려줌',
@@ -90,23 +85,57 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
     getConnectionStatus(userId),
     getTodayManualInputs(userId),
   ])
+  const persona = getMockPersona(userId)
 
   const sleep = briefing.metrics.find((metric) => metric.id === 'sleep')
   const humidity = briefing.metrics.find((metric) => metric.id === 'humidity')
   const uv = briefing.metrics.find((metric) => metric.id === 'uv')
 
   const lifestyleEntries = connections.lifeDataConnected
+    ? persona?.current_health
+      ? [
+          ...(persona.current_health.sleep_hours !== undefined ? [automaticEntry({
+            id: 'sleep',
+            type: 'sleep',
+            label: '수면',
+            value: String(persona.current_health.sleep_hours),
+            unit: '시간',
+            ...(persona.health_baseline?.sleep_hours !== undefined
+              ? { description: `평소 ${persona.health_baseline.sleep_hours}시간` }
+              : {}),
+          })] : []),
+          ...(persona.current_health.hrv_ms !== undefined ? [automaticEntry({
+            id: 'hrv',
+            type: 'hrv',
+            label: 'HRV',
+            value: String(persona.current_health.hrv_ms),
+            unit: 'ms',
+            ...(persona.health_baseline?.hrv_ms !== undefined
+              ? { description: '14일 평균보다 약 35% 낮음' }
+              : {}),
+          })] : []),
+          ...(persona.current_health.active_energy_kcal !== undefined ? [automaticEntry({
+            id: 'active-energy',
+            type: 'active_energy_kcal',
+            label: '활동',
+            value: String(persona.current_health.active_energy_kcal),
+            unit: 'kcal',
+          })] : []),
+        ]
+      : []
+    : []
+
+  const fallbackLifestyleEntries = connections.lifeDataConnected && !persona
     ? [
         ...(sleep ? [automaticEntry({
           id: sleep.id,
           type: 'sleep',
           label: sleep.label,
           value: sleep.value,
-          description: sleep.description,
         })] : []),
-        ...additionalLifestyleMock.map(automaticEntry),
       ]
     : []
+  const visibleLifestyleEntries = persona ? lifestyleEntries : fallbackLifestyleEntries
 
   const environmentEntries = connections.weatherConnected
     ? [
@@ -132,11 +161,10 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
           value: uv.value,
           description: uv.description,
         })] : []),
-        ...additionalEnvironmentMock.map(automaticEntry),
       ]
     : []
 
-  const visibleAutomaticCount = lifestyleEntries.length + environmentEntries.length
+  const visibleAutomaticCount = visibleLifestyleEntries.length + environmentEntries.length
   const automaticCount = connections.lifeDataConnected && connections.weatherConnected
     ? briefing.syncedCount
     : visibleAutomaticCount
@@ -145,8 +173,11 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
     dateLabel: briefing.dateLabel,
     automaticCount,
     connections,
-    lifestyleEntries,
+    lifestyleEntries: visibleLifestyleEntries,
     environmentEntries,
     manualEntries,
+    healthBaselineStatus: connections.lifeDataConnected
+      ? persona?.baseline_established ? 'established' : 'building'
+      : undefined,
   }
 }

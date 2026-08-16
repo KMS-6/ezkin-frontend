@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Droplets, RefreshCw, Sparkles, Utensils } from 'lucide-react'
+import { Check, Droplets, RefreshCw, Utensils } from 'lucide-react'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
 import { PrimaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
-import { HeroCard } from '../components/ui/HeroCard'
 import { SectionHeader } from '../components/ui/SectionHeader'
 import { useAuth } from '../features/auth/authContextValue'
 import { ConnectionEmptyState } from '../features/lifelog/components/ConnectionEmptyState'
@@ -62,55 +61,43 @@ export function LifeLogPage() {
 }
 
 function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
-  const hasAutomaticData = lifeLog.automaticCount > 0
-
   return (
     <>
-      <p className="mb-2 text-[11px] font-medium text-ez-muted">{lifeLog.dateLabel}</p>
+      <p className="mb-1 text-[11px] font-medium text-ez-muted">{lifeLog.dateLabel}</p>
 
-      <HeroCard className="p-5">
-        <div className="pointer-events-none absolute -right-12 -top-16 size-40 rounded-full bg-white/45" aria-hidden="true" />
-        <div className="relative">
-          <span className="grid size-9 place-items-center rounded-[13px] bg-white/70 text-ez-primary">
-            <Sparkles size={17} strokeWidth={1.9} aria-hidden="true" />
-          </span>
-          <h1 className="mt-3 text-[20px] font-bold leading-[1.35] tracking-[-0.03em] text-ez-text">
-            {hasAutomaticData ? '오늘도 알아서 기록 중이에요.' : '아직 연결된 데이터가 많지 않아요.'}
-          </h1>
-          <p className="mt-1.5 text-[13px] font-normal leading-5 text-ez-secondary">
-            {hasAutomaticData
-              ? `${lifeLog.automaticCount}개 데이터 자동 수집`
-              : '괜찮아요. 지금 상태로도 EZkin을 사용할 수 있어요.'}
-          </p>
-        </div>
-      </HeroCard>
-
-      <section className="mt-7">
-        <SectionHeader title="생활 데이터" />
+      <section className="mt-5">
+        <SectionHeader
+          title="Health"
+          action={lifeLog.connections.lifeDataConnected ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ez-success">
+              워치 연결됨 <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+          ) : undefined}
+        />
         {lifeLog.connections.lifeDataConnected ? (
-          <LifeLogMetricGroup
-            entries={lifeLog.lifestyleEntries}
-          />
+          <>
+            <LifeLogMetricGroup entries={lifeLog.lifestyleEntries} tone="health" />
+            {lifeLog.healthBaselineStatus === 'building' && (
+              <p className="mt-2 text-[11px] text-ez-muted">개인 평균을 만드는 중이에요.</p>
+            )}
+          </>
         ) : (
-          <ConnectionEmptyState kind="생활 데이터" />
+          <ConnectionEmptyState kind="health" />
         )}
       </section>
 
       <section className="mt-7">
-        <SectionHeader title="오늘 환경" />
+        <SectionHeader title="Environment" />
         {lifeLog.connections.weatherConnected ? (
-          <LifeLogMetricGroup
-            entries={lifeLog.environmentEntries}
-            layout="grid"
-          />
+          <LifeLogMetricGroup entries={lifeLog.environmentEntries} layout="columns" tone="environment" />
         ) : (
-          <ConnectionEmptyState kind="날씨" />
+          <ConnectionEmptyState kind="environment" />
         )}
       </section>
 
-      {lifeLog.manualEntries.length > 0 && (
-        <section className="mt-7">
-          <h2 className="text-[16px] font-bold text-ez-text">직접 알려준 내용</h2>
+      <section className="mt-7">
+        <h2 className="text-[16px] font-bold text-ez-text">오늘 기록</h2>
+        {lifeLog.manualEntries.length > 0 ? (
           <div className="mt-2.5 overflow-hidden rounded-[16px] border border-ez-border bg-white">
             {lifeLog.manualEntries.map((entry) => (
               <div key={entry.id} className="flex items-center gap-3 px-4 py-3 [&+&]:border-t [&+&]:border-ez-border/70">
@@ -129,8 +116,10 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <Card className="mt-2.5 px-4 py-4"><p className="text-[12px] text-ez-muted">오늘 알려준 내용은 아직 없어요.</p></Card>
+        )}
+      </section>
     </>
   )
 }

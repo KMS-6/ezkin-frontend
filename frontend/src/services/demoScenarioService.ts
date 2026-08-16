@@ -1,9 +1,13 @@
-import { demo30DayProfileSeed } from '../mocks/onboarding'
+import { getMockPersona, getPersonaProfileSeed } from '../mocks/personas'
 import type { User } from '../types/auth'
 import type { DemoScenario, DemoScenarioOption } from '../types/demoScenario'
 import type { OnboardingProfile } from '../types/onboarding'
-import { activateDemoUser } from './authService'
+import { activateLocalUser, getCurrentUser } from './authService'
 import { clearDemoQuickInputs } from './quickInputService'
+import {
+  clearRecentTriggerAnalysisReference,
+  rememberTriggerAnalysisReference,
+} from './skinScanService'
 import {
   completeOnboardingProfile,
   getOnboardingProfile,
@@ -16,99 +20,152 @@ import {
 } from './onboardingService'
 
 const DEMO_SCENARIO_KEY = 'ezkin:demo-scenario'
-export const DEMO_FIRST_USER_ID = 'ezkin-demo-first'
-export const DEMO_30D_USER_ID = 'ezkin-demo-user'
+const NORMAL_USER_KEY = 'ezkin:normal-user'
+export const NORMAL_USER_ID = 'ezkin-demo-user'
+export const DEMO_A_USER_ID = 'persona_a1_seoyeon'
+export const DEMO_B_USER_ID = 'persona_b1_eunji'
+export const DEMO_C_USER_ID = 'persona_c1_minjun'
 
 export const demoScenarioOptions: DemoScenarioOption[] = [
-  { id: 'first', label: '처음 시작', userId: DEMO_FIRST_USER_ID },
-  { id: '30d', label: '30일 사용', userId: DEMO_30D_USER_ID },
+  { id: 'A', label: '워치 없음 · 첫 사용', userId: DEMO_A_USER_ID, personaId: 'A1' },
+  { id: 'B', label: '워치 연결 · 첫 사용', userId: DEMO_B_USER_ID, personaId: 'B1' },
+  { id: 'C', label: '워치 연결 · 장기 사용', userId: DEMO_C_USER_ID, personaId: 'C1' },
 ]
 
 export function isDemoScenarioEnabled(
   value = import.meta.env.VITE_ENABLE_DEMO_SCENARIO,
 ): boolean {
-  return value !== 'false'
+  return value === 'true'
 }
 
 export function getStoredDemoScenario(): DemoScenario | null {
   const saved = localStorage.getItem(DEMO_SCENARIO_KEY)
-  return saved === 'first' || saved === '30d' ? saved : null
+  const scenario = saved === 'A' || saved === 'B' || saved === 'C'
+    ? saved
+    : saved === 'first'
+      ? 'A'
+      : saved === '30d'
+        ? 'C'
+        : null
+  if (scenario) localStorage.setItem(DEMO_SCENARIO_KEY, scenario)
+  return scenario
 }
 
 export function getActiveDemoScenario(userId: string): DemoScenario | null {
-  if (userId === DEMO_FIRST_USER_ID) return 'first'
-  if (userId === DEMO_30D_USER_ID) return '30d'
-  return getStoredDemoScenario()
+  if (userId === DEMO_A_USER_ID) return 'A'
+  if (userId === DEMO_B_USER_ID) return 'B'
+  if (userId === DEMO_C_USER_ID) return 'C'
+  return null
+}
+
+function isPersonaUserId(userId: string): boolean {
+  return userId === DEMO_A_USER_ID || userId === DEMO_B_USER_ID || userId === DEMO_C_USER_ID
+}
+
+function rememberNormalUser(user: User): void {
+  if (isPersonaUserId(user.id)) return
+  localStorage.setItem(NORMAL_USER_KEY, JSON.stringify(user))
+}
+
+function getRememberedNormalUser(): User {
+  const saved = localStorage.getItem(NORMAL_USER_KEY)
+  if (saved) {
+    try {
+      const user = JSON.parse(saved) as User
+      if (typeof user.id === 'string' && !isPersonaUserId(user.id)) return user
+    } catch {
+      // Fall back to the stable local identity.
+    }
+  }
+
+  return {
+    id: NORMAL_USER_ID,
+    email: 'local@ezkin.app',
+    onboardingCompleted: false,
+  }
+}
+
+export async function activateNormalMode(): Promise<User> {
+  localStorage.removeItem(DEMO_SCENARIO_KEY)
+  const rememberedUser = getRememberedNormalUser()
+  const profile = await getOnboardingProfile(rememberedUser.id)
+  const user = {
+    ...rememberedUser,
+    nickname: profile.nickname ?? rememberedUser.nickname,
+    onboardingCompleted: Boolean(profile.completedAt),
+  }
+  rememberNormalUser(user)
+  return activateLocalUser(user)
 }
 
 function getScenarioOption(scenario: DemoScenario): DemoScenarioOption {
   return demoScenarioOptions.find((option) => option.id === scenario) ?? demoScenarioOptions[0]
 }
 
-async function ensureFirstScenarioData(reset = false): Promise<OnboardingProfile> {
+async function seedPersonaProfile(userId: string, reset = false): Promise<OnboardingProfile> {
+  const persona = getMockPersona(userId)
+  if (!persona) throw new Error('Demo persona를 찾지 못했어요.')
+
   if (reset) {
-    await resetDemoOnboardingProfile(DEMO_FIRST_USER_ID)
-    clearDemoQuickInputs(DEMO_FIRST_USER_ID)
+    await resetDemoOnboardingProfile(userId)
+    clearDemoQuickInputs(userId)
+    clearRecentTriggerAnalysisReference(userId)
   }
-  return getOnboardingProfile(DEMO_FIRST_USER_ID)
-}
 
-async function ensure30DayScenarioData(): Promise<OnboardingProfile> {
-  const profile = await getOnboardingProfile(DEMO_30D_USER_ID)
-  if (profile.completedAt) return profile
+  const profile = await getOnboardingProfile(userId)
+  if (!profile.completedAt || reset) {
+    const seed = getPersonaProfileSeed(persona)
+    await saveBasicProfile(userId, {
+      nickname: seed.nickname,
+      birthYear: seed.birthYear,
+      gender: seed.gender,
+      healthConcerns: seed.healthConcerns,
+    })
+    await saveSkinType(userId, seed.skinType)
+    await saveConcerns(userId, seed.selectedConcerns)
+    await saveProducts(userId, seed.registeredProductIds)
+    await saveConnectionSettings(userId, {
+      lifeDataConnected: seed.lifeDataConnected,
+      weatherConnected: seed.weatherConnected,
+    })
+    await completeOnboardingProfile(userId)
+  }
 
-  await saveBasicProfile(DEMO_30D_USER_ID, {
-    nickname: profile.nickname ?? demo30DayProfileSeed.nickname,
-    birthYear: profile.birthYear ?? demo30DayProfileSeed.birthYear,
-    gender: profile.gender ?? demo30DayProfileSeed.gender,
-    healthConcerns: profile.healthConcerns.length > 0
-      ? profile.healthConcerns
-      : demo30DayProfileSeed.healthConcerns,
-  })
-  await saveSkinType(
-    DEMO_30D_USER_ID,
-    profile.skinType === 'unknown' ? demo30DayProfileSeed.skinType : profile.skinType,
-  )
-  await saveConcerns(
-    DEMO_30D_USER_ID,
-    profile.selectedConcerns.length > 0
-      ? profile.selectedConcerns
-      : demo30DayProfileSeed.selectedConcerns,
-  )
-  await saveProducts(DEMO_30D_USER_ID, [
-    ...new Set([...profile.registeredProductIds, ...demo30DayProfileSeed.registeredProductIds]),
-  ])
-  await saveConnectionSettings(DEMO_30D_USER_ID, {
-    lifeDataConnected: true,
-    weatherConnected: true,
-  })
-  await completeOnboardingProfile(DEMO_30D_USER_ID)
-  return getOnboardingProfile(DEMO_30D_USER_ID)
+  if (persona.pattern_analysis) {
+    rememberTriggerAnalysisReference(userId, {
+      scanId: persona.pattern_analysis.scan_id,
+      capturedAt: persona.skin_scan.captured_at,
+    })
+  } else {
+    clearRecentTriggerAnalysisReference(userId)
+  }
+  return getOnboardingProfile(userId)
 }
 
 export async function ensureDemoScenarioData(
   scenario: DemoScenario,
-  options: { resetFirst?: boolean } = {},
+  options: { reset?: boolean } = {},
 ): Promise<OnboardingProfile> {
-  return scenario === 'first'
-    ? ensureFirstScenarioData(Boolean(options.resetFirst))
-    : ensure30DayScenarioData()
+  return seedPersonaProfile(getScenarioOption(scenario).userId, Boolean(options.reset))
 }
 
 export async function activateDemoScenario(
   scenario: DemoScenario,
-  options: { resetFirst?: boolean } = {},
+  options: { reset?: boolean } = {},
 ): Promise<User> {
   if (!isDemoScenarioEnabled()) {
     throw new Error('Demo 시나리오가 비활성화되어 있어요.')
   }
 
+  const currentUser = await getCurrentUser()
+  if (currentUser) rememberNormalUser(currentUser)
+
   const option = getScenarioOption(scenario)
   const profile = await ensureDemoScenarioData(scenario, options)
-  const user = await activateDemoUser({
+  const user = await activateLocalUser({
     id: option.userId,
-    email: scenario === 'first' ? 'first@demo.ezkin' : 'demo@ezkin.app',
-    nickname: profile.nickname ?? (scenario === 'first' ? '처음 사용자' : 'EZkin'),
+    email: `${option.personaId.toLowerCase()}@demo.ezkin`,
+    nickname: profile.nickname,
     onboardingCompleted: Boolean(profile.completedAt),
   })
 
@@ -119,24 +176,26 @@ export async function activateDemoScenario(
 export async function resolveDemoScenarioEntryUser(
   currentUser: User | null,
 ): Promise<User | null> {
-  if (!isDemoScenarioEnabled()) return currentUser
+  if (!isDemoScenarioEnabled()) {
+    return currentUser && !isPersonaUserId(currentUser.id) ? currentUser : activateNormalMode()
+  }
 
   const storedScenario = getStoredDemoScenario()
   if (storedScenario) {
     const expectedUserId = getScenarioOption(storedScenario).userId
-    const canReuseCurrentUser = currentUser?.id === expectedUserId
-      && (storedScenario === 'first' || currentUser.onboardingCompleted)
+    const canReuseCurrentUser = currentUser?.id === expectedUserId && currentUser.onboardingCompleted
     return canReuseCurrentUser ? currentUser : activateDemoScenario(storedScenario)
   }
 
-  if (!currentUser) return activateDemoScenario('first')
-  if (currentUser.id === DEMO_FIRST_USER_ID) {
-    localStorage.setItem(DEMO_SCENARIO_KEY, 'first')
+  const activeScenario = currentUser ? getActiveDemoScenario(currentUser.id) : null
+  if (activeScenario) {
+    localStorage.setItem(DEMO_SCENARIO_KEY, activeScenario)
     return currentUser
   }
-  if (currentUser.id !== DEMO_30D_USER_ID) return currentUser
 
-  const profile = await getOnboardingProfile(DEMO_30D_USER_ID)
-  const inferredScenario: DemoScenario = profile.completedAt ? '30d' : 'first'
-  return activateDemoScenario(inferredScenario)
+  if (currentUser && !isPersonaUserId(currentUser.id)) {
+    rememberNormalUser(currentUser)
+    return currentUser
+  }
+  return activateNormalMode()
 }

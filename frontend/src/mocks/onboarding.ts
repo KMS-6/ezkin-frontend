@@ -2,30 +2,8 @@ import type {
   ConcernOption,
   Gender,
   HealthConcern,
-  OnboardingProfile,
   SkinType,
 } from '../types/onboarding'
-
-export const demo30DayProfileSeed: Omit<OnboardingProfile, 'userId'> = {
-  currentStep: 5,
-  onboardingVersion: 2,
-  nickname: 'EZkin',
-  birthYear: 1999,
-  gender: 'prefer_not_to_say',
-  healthConcerns: ['irregular_sleep'],
-  skinType: 'combination',
-  selectedConcerns: ['dryness', 'sensitivity'],
-  registeredProductIds: [
-    'calming-toner',
-    'hyaluronic-serum',
-    'ceramide-cream',
-    'retinol-serum',
-    'spf50-sunscreen',
-  ],
-  lifeDataConnected: true,
-  weatherConnected: true,
-  completedAt: '2026-07-12T00:00:00.000Z',
-}
 
 export const concernOptions: ConcernOption[] = [
   { id: 'breakouts', label: '트러블' },

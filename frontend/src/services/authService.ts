@@ -19,14 +19,13 @@ interface StoredMockUser {
   password: string
 }
 
-const demoAccount: StoredMockUser = {
+const localAppAccount: StoredMockUser = {
   user: {
     id: 'ezkin-demo-user',
-    email: 'demo@ezkin.app',
-    nickname: 'EZkin 데모',
-    onboardingCompleted: true,
+    email: 'local@ezkin.app',
+    onboardingCompleted: false,
   },
-  password: 'ezkin1234',
+  password: '',
 }
 
 export class AuthServiceError extends Error {
@@ -109,9 +108,9 @@ function parseMockUserStore(saved: string): StoredMockUser[] {
 }
 
 function normalizeMockUsers(users: StoredMockUser[]): StoredMockUser[] {
-  const normalized = [demoAccount]
-  const knownEmails = new Set([demoAccount.user.email])
-  const knownIds = new Set([demoAccount.user.id])
+  const normalized = [localAppAccount]
+  const knownEmails = new Set([localAppAccount.user.email])
+  const knownIds = new Set([localAppAccount.user.id])
 
   for (const account of users) {
     const email = normalizeEmail(account.user.email)
@@ -280,7 +279,7 @@ export async function getCurrentUser(): Promise<User | null> {
   try {
     const session = JSON.parse(saved) as AuthResponse
     // 자동 진입으로 만든 Demo session은 session의 온보딩 상태를 그대로 사용합니다.
-    if (session.user.id === demoAccount.user.id) return session.user
+    if (session.user.id === localAppAccount.user.id) return session.user
     const account = readMockUsers().find(({ user }) => user.id === session.user.id)
     return account?.user ?? session.user
   } catch {
@@ -295,17 +294,16 @@ export async function getEntryUser(): Promise<User | null> {
 
   const response: AuthResponse = {
     user: {
-      ...demoAccount.user,
-      onboardingCompleted: false,
+      ...localAppAccount.user,
     },
-    accessToken: `mock-token-${demoAccount.user.id}`,
+    accessToken: `mock-token-${localAppAccount.user.id}`,
   }
 
   saveSession(response)
   return response.user
 }
 
-export async function activateDemoUser(user: User): Promise<User> {
+export async function activateLocalUser(user: User): Promise<User> {
   if (!USE_MOCK_API) {
     throw new AuthServiceError('UNKNOWN', 'Demo 시나리오는 Mock 환경에서만 사용할 수 있어요.')
   }
@@ -316,6 +314,8 @@ export async function activateDemoUser(user: User): Promise<User> {
   })
   return user
 }
+
+export const activateDemoUser = activateLocalUser
 
 export async function completeOnboarding(): Promise<User> {
   if (!USE_MOCK_API) {

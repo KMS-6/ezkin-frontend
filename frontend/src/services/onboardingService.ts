@@ -6,41 +6,19 @@ import type {
   SkinType,
   SkinConcern,
 } from '../types/onboarding'
-import { demo30DayProfileSeed } from '../mocks/onboarding'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const PROFILE_STORAGE_KEY = 'ezkin:onboarding-profiles'
 const TOKEN_KEY = 'ezkin:access-token'
-const DEMO_USER_ID = 'ezkin-demo-user'
 
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
 type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
 
-function hasCompletedDemoSession(userId: string): boolean {
-  if (userId !== DEMO_USER_ID) return false
-
-  try {
-    const savedSession = localStorage.getItem('ezkin:auth-session')
-    if (!savedSession) return false
-    const session = JSON.parse(savedSession) as { user?: { id?: string; onboardingCompleted?: boolean } }
-    return session.user?.id === userId && session.user.onboardingCompleted === true
-  } catch {
-    return false
-  }
-}
-
 function createDefaultProfile(
   userId: string,
-  hasSavedProfile: boolean,
+  _hasSavedProfile: boolean,
 ): OnboardingProfile {
-  if (!hasSavedProfile && hasCompletedDemoSession(userId)) {
-    return {
-      userId,
-      ...demo30DayProfileSeed,
-    }
-  }
-
   return {
     userId,
     currentStep: 1,

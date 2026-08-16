@@ -6,7 +6,6 @@ import {
   LoaderCircle,
   RefreshCw,
   RotateCcw,
-  ScanFace,
   Sparkles,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -18,12 +17,25 @@ import { ScanAction } from '../features/scan/components/ScanAction'
 import { ScanCamera } from '../features/scan/components/ScanCamera'
 import type { ScanCameraHandle } from '../features/scan/components/ScanCamera'
 import { ScanFrame } from '../features/scan/components/ScanFrame'
-import { analyzeSkin } from '../services/skinScanService'
+import { getScanCountdownDelay } from '../features/scan/scanCountdown'
+import {
+  PatternAnalysisContent,
+  PatternAnalysisInsufficient,
+} from '../features/analysis/components/PatternAnalysisContent'
+import { getPatternAnalysis } from '../services/analysisService'
+import {
+  analyzeSkin,
+  clearRecentTriggerAnalysisReference,
+  rememberLatestSkinScanResult,
+  rememberTriggerAnalysisReference,
+} from '../services/skinScanService'
+import { useAuth } from '../features/auth/authContextValue'
 import type {
   SkinScanErrorCode,
   SkinScanResult,
   SkinScanState,
 } from '../types/skinScan'
+import type { TriggerAnalysisDetail } from '../types/analysisReport'
 
 const errorMessages: Record<SkinScanErrorCode, { title: string; description: string }> = {
   permission_denied: {
@@ -49,6 +61,7 @@ const errorMessages: Record<SkinScanErrorCode, { title: string; description: str
 }
 
 export function ScanPage() {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const cameraRef = useRef<ScanCameraHandle>(null)
   const analysisRunRef = useRef(0)
@@ -57,6 +70,7 @@ export function ScanPage() {
   const [capturedImage, setCapturedImage] = useState<Blob | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [result, setResult] = useState<SkinScanResult | null>(null)
+  const [patternAnalysis, setPatternAnalysis] = useState<TriggerAnalysisDetail | null>(null)
   const [errorCode, setErrorCode] = useState<SkinScanErrorCode>('camera_unavailable')
 
   const cameraActive = state === 'requestingPermission' || state === 'camera' || state === 'countdown'
@@ -112,7 +126,7 @@ export function ScanPage() {
     const timeoutId = window.setTimeout(() => {
       if (countdown > 1) setCountdown(countdown - 1)
       else void captureFrame()
-    }, 1000)
+    }, getScanCountdownDelay(countdown))
 
     return () => window.clearTimeout(timeoutId)
   }, [captureFrame, countdown, state])
@@ -132,6 +146,23 @@ export function ScanPage() {
     try {
       const nextResult = await analyzeSkin(capturedImage)
       if (analysisRunRef.current !== runId) return
+      if (user) {
+        rememberLatestSkinScanResult(user.id, nextResult)
+        try {
+          const nextPattern = await getPatternAnalysis(user.id, nextResult.id)
+          setPatternAnalysis(nextPattern)
+          if (nextPattern) {
+            rememberTriggerAnalysisReference(user.id, {
+              scanId: nextPattern.scan_id,
+              capturedAt: nextPattern.window.end,
+            })
+          } else {
+            clearRecentTriggerAnalysisReference(user.id)
+          }
+        } catch {
+          setPatternAnalysis(null)
+        }
+      }
       setResult(nextResult)
       setState('result')
     } catch {
@@ -144,6 +175,7 @@ export function ScanPage() {
     analysisRunRef.current += 1
     setCapturedImage(null)
     setResult(null)
+    setPatternAnalysis(null)
     setCountdown(null)
     setState('idle')
   }
@@ -187,7 +219,13 @@ export function ScanPage() {
 
         {state === 'analyzing' && <ScanAnalyzing imageUrl={previewUrl} />}
 
-        {state === 'result' && result && <ScanResultView result={result} onReset={resetToIdle} />}
+        {state === 'result' && result && (
+          <ScanResultView
+            result={result}
+            patternAnalysis={patternAnalysis}
+            onReset={resetToIdle}
+          />
+        )}
 
         {state === 'error' && (
           <ScanError
@@ -250,7 +288,15 @@ function ScanAnalyzing({ imageUrl }: { imageUrl: string | null }) {
   )
 }
 
-function ScanResultView({ result, onReset }: { result: SkinScanResult; onReset: () => void }) {
+function ScanResultView({
+  result,
+  patternAnalysis,
+  onReset,
+}: {
+  result: SkinScanResult
+  patternAnalysis: TriggerAnalysisDetail | null
+  onReset: () => void
+}) {
   return (
     <section>
       <p className="text-[11px] font-semibold text-ez-primary">스캔 결과</p>
@@ -271,9 +317,12 @@ function ScanResultView({ result, onReset }: { result: SkinScanResult; onReset: 
       </Card>
 
       <p className="mt-4 text-[11px] leading-5 text-ez-muted">EZkin의 안내는 의료 진단을 대신하지 않아요.</p>
-      <PrimaryButton type="button" fullWidth className="mt-5" onClick={onReset} icon={<ScanFace size={17} aria-hidden="true" />}>
-        스캔 마치기
-      </PrimaryButton>
+      <div className="mt-8 border-t border-ez-border pt-7">
+        {patternAnalysis
+          ? <PatternAnalysisContent analysis={patternAnalysis} />
+          : <PatternAnalysisInsufficient />}
+      </div>
+      <button type="button" onClick={onReset} className="mt-4 min-h-10 w-full text-[12px] font-medium text-ez-muted hover:text-ez-primary">스캔 마치기</button>
     </section>
   )
 }

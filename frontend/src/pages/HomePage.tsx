@@ -9,27 +9,24 @@ import { QuickChoice } from '../components/ui/QuickChoice'
 import { useAuth } from '../features/auth/authContextValue'
 import { getTodayBriefing } from '../services/briefingService'
 import { getTodayRoutineForUser } from '../services/productService'
+import { getLatestSkinScanResult } from '../services/skinScanService'
 import {
   getTodayQuickInput,
-  saveNotificationDietChoice,
+  saveDietChoice,
   saveWaterChoice,
 } from '../services/quickInputService'
 import type { BriefingData } from '../types/briefing'
 import type { RoutinePeriod, TodayShelfRoutine } from '../types/product'
 import { cn } from '../utils/cn'
-import type { NotificationDietChoice, WaterChoice } from '../types/androidNotification'
+import type { DietChoice, WaterChoice } from '../types/androidNotification'
+import type { SkinScanResult } from '../types/skinScan'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
+import { DIET_CHOICE_OPTIONS } from '../utils/dietChoice'
 
 const waterChoices: Array<{ label: string; value: WaterChoice }> = [
   { label: '3잔 미만', value: 'under_3' },
   { label: '3~5잔', value: '3_to_5' },
   { label: '5잔 이상', value: 'over_5' },
-]
-
-const dietChoices: Array<{ label: string; value: NotificationDietChoice }> = [
-  { label: '클린', value: 'clean' },
-  { label: '보통', value: 'normal' },
-  { label: '자극적', value: 'stimulating' },
 ]
 
 export function HomePage() {
@@ -39,7 +36,8 @@ export function HomePage() {
   const [loadError, setLoadError] = useState(false)
   const [period, setPeriod] = useState<RoutinePeriod>('am')
   const [waterChoice, setWaterChoice] = useState<WaterChoice | null>(null)
-  const [dietChoice, setDietChoice] = useState<NotificationDietChoice | null>(null)
+  const [dietChoice, setDietChoice] = useState<DietChoice | null>(null)
+  const [latestScan, setLatestScan] = useState<SkinScanResult | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -50,6 +48,7 @@ export function HomePage() {
       const quickInput = getTodayQuickInput(user.id)
       setWaterChoice(quickInput?.waterChoice ?? null)
       setDietChoice(quickInput?.dietChoice ?? null)
+      setLatestScan(getLatestSkinScanResult(user.id))
     } catch {
       setWaterChoice(null)
       setDietChoice(null)
@@ -89,11 +88,11 @@ export function HomePage() {
     void saveWaterChoice(user.id, choice).catch(() => setWaterChoice(previous))
   }
 
-  const handleDietChoice = (choice: NotificationDietChoice) => {
+  const handleDietChoice = (choice: DietChoice) => {
     if (!user) return
     const previous = dietChoice
     setDietChoice(choice)
-    void saveNotificationDietChoice(user.id, choice).catch(() => setDietChoice(previous))
+    void saveDietChoice(user.id, choice).catch(() => setDietChoice(previous))
   }
 
   if (!user) return null
@@ -118,11 +117,12 @@ export function HomePage() {
             </Link>
             <Link
               to="/sos"
-              className="grid size-10 place-items-center rounded-full text-ez-muted transition hover:bg-ez-primary-soft hover:text-ez-primary"
+              className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[#f6b8d6] bg-[#fff1f7] px-2.5 text-[#d72f82] shadow-[0_2px_8px_rgba(236,72,153,0.08)] transition hover:bg-[#ffe5f1]"
               aria-label="SOS에게 물어보기"
               title="SOS에게 물어보기"
             >
-              <MessageCircleQuestion size={19} strokeWidth={1.8} aria-hidden="true" />
+              <MessageCircleQuestion size={19} strokeWidth={2} aria-hidden="true" />
+              <span className="text-[11px] font-bold">SOS</span>
             </Link>
           </div>
         }
@@ -145,6 +145,7 @@ export function HomePage() {
             <p className="mt-3 text-[13px] font-normal leading-[1.65] text-ez-secondary">
               {briefing.summary}
             </p>
+            <CompactSignalSummary briefing={briefing} latestScan={latestScan} />
             <div className="mt-3.5 flex justify-end border-t border-white/80 pt-3">
               <Link
                 to="/briefing"
@@ -245,7 +246,7 @@ export function HomePage() {
               <QuickChoice
                 question="오늘 식단은 어땠어요?"
                 compactLabel="오늘 식단"
-                choices={dietChoices}
+                choices={DIET_CHOICE_OPTIONS}
                 value={dietChoice}
                 onChange={handleDietChoice}
               />
@@ -254,6 +255,33 @@ export function HomePage() {
         </section>
       </PageContainer>
     </>
+  )
+}
+
+function CompactSignalSummary({ briefing, latestScan }: { briefing: BriefingData; latestScan: SkinScanResult | null }) {
+  const health = briefing.metrics.filter((metric) => metric.source === 'health')
+  const environment = briefing.metrics.filter((metric) => metric.source === 'environment')
+  const signals = [
+    ...(health.length > 0 ? [{ label: 'Health', value: health.map((metric) => `${metric.label} ${metric.value}`).join(' · ') }] : []),
+    ...(environment.length > 0 ? [{ label: '환경', value: environment.map((metric) => `${metric.label} ${metric.value}`).join(' · ') }] : []),
+    ...(latestScan ? [{ label: 'Skin', value: `최근 ${latestScan.observedAreas[0] ?? '피부'} 변화` }] : []),
+  ]
+
+  if (signals.length === 0) return null
+
+  return (
+    <div className="mt-4 border-t border-white/80 pt-3">
+      <p className="text-[10px] font-semibold text-ez-primary">오늘 피부에 반영된 신호</p>
+      <div className="mt-2 space-y-1.5">
+        {signals.map((signal) => (
+          <div key={signal.label} className="flex items-start gap-2 text-[10px] leading-4">
+            <span className="mt-1 size-1.5 shrink-0 rounded-full bg-[#34d399]" aria-hidden="true" />
+            <strong className="w-11 shrink-0 font-semibold text-ez-text">{signal.label}</strong>
+            <span className="text-ez-secondary">{signal.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 

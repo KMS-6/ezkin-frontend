@@ -39,9 +39,9 @@ public class EzkinNotificationReceiver extends BroadcastReceiver {
     }
 
     private String dietChoice(String action) {
-        if (EzkinNotificationHelper.ACTION_DIET_CLEAN.equals(action)) return "clean";
         if (EzkinNotificationHelper.ACTION_DIET_NORMAL.equals(action)) return "normal";
-        if (EzkinNotificationHelper.ACTION_DIET_STIMULATING.equals(action)) return "stimulating";
+        if (EzkinNotificationHelper.ACTION_DIET_SPICY.equals(action)) return "spicy";
+        if (EzkinNotificationHelper.ACTION_DIET_LATE_NIGHT_MEAL.equals(action)) return "late_night_meal";
         return null;
     }
 }

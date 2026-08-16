@@ -1,6 +1,7 @@
 import type {
   DailyQuickInput,
-  NotificationDietChoice,
+  DailyManualMetricPayload,
+  DietChoice,
   WaterChoice,
 } from '../types/androidNotification'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
@@ -11,6 +12,11 @@ const LEGACY_DIET_STORAGE_KEY = 'ezkin:diet-choices'
 
 type DailyQuickInputPatch = Pick<DailyQuickInput, 'waterChoice' | 'dietChoice'> & {
   createdAt?: string
+}
+
+type StoredDailyQuickInput = Omit<DailyQuickInput, 'waterChoice' | 'dietChoice'> & {
+  waterChoice?: unknown
+  dietChoice?: unknown
 }
 
 function localDateKey(date = new Date()): string {
@@ -35,26 +41,28 @@ function readRecord<T>(key: string): Record<string, T> {
   }
 }
 
-function readDailyQuickInputs(): Record<string, DailyQuickInput> {
-  return readRecord<DailyQuickInput>(QUICK_INPUT_STORAGE_KEY)
+function readDailyQuickInputs(): Record<string, StoredDailyQuickInput> {
+  return readRecord<StoredDailyQuickInput>(QUICK_INPUT_STORAGE_KEY)
 }
 
 function validWaterChoice(value: unknown): value is WaterChoice {
   return value === 'under_3' || value === '3_to_5' || value === 'over_5'
 }
 
-function validDietChoice(value: unknown): value is NotificationDietChoice {
-  return value === 'clean' || value === 'normal' || value === 'stimulating'
+function normalizeStoredDietChoice(value: unknown): DietChoice | undefined {
+  if (value === 'normal' || value === 'spicy' || value === 'late_night_meal') return value
+  if (value === 'usual') return 'normal'
+  return undefined
 }
 
 function getLegacyChoices(userId: string): DailyQuickInputPatch {
   const legacyWater = readRecord<unknown>(LEGACY_WATER_STORAGE_KEY)[userId]
   const legacyDiet = readRecord<unknown>(LEGACY_DIET_STORAGE_KEY)[userId]
+  const dietChoice = normalizeStoredDietChoice(legacyDiet)
 
   return {
     ...(validWaterChoice(legacyWater) ? { waterChoice: legacyWater } : {}),
-    ...(legacyDiet === 'usual' ? { dietChoice: 'normal' as const } : {}),
-    ...(legacyDiet === 'spicy' ? { dietChoice: 'stimulating' as const } : {}),
+    ...(dietChoice ? { dietChoice } : {}),
   }
 }
 
@@ -66,19 +74,22 @@ function migrateLegacyTodayRecord(userId: string, date: string): DailyQuickInput
   const waterChoice = validWaterChoice(existing?.waterChoice)
     ? existing.waterChoice
     : legacy.waterChoice
-  const dietChoice = validDietChoice(existing?.dietChoice)
-    ? existing.dietChoice
+  const hasStoredDiet = existing && Object.hasOwn(existing, 'dietChoice')
+  const dietChoice = hasStoredDiet
+    ? normalizeStoredDietChoice(existing.dietChoice)
     : legacy.dietChoice
 
-  if (!waterChoice && !dietChoice) return existing ?? null
-  if (existing?.waterChoice === waterChoice && existing?.dietChoice === dietChoice) return existing
+  if (!existing && !waterChoice && !dietChoice) return null
+  if (existing?.waterChoice === waterChoice && existing?.dietChoice === dietChoice) {
+    return existing as DailyQuickInput
+  }
 
   const now = new Date().toISOString()
   const migrated: DailyQuickInput = {
     userId,
     date,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: existing?.updatedAt ?? now,
+    createdAt: typeof existing?.createdAt === 'string' ? existing.createdAt : now,
+    updatedAt: typeof existing?.updatedAt === 'string' ? existing.updatedAt : now,
     ...(waterChoice ? { waterChoice } : {}),
     ...(dietChoice ? { dietChoice } : {}),
   }
@@ -112,6 +123,7 @@ export async function saveDailyQuickInput(
   const key = recordKey(userId, date)
   const existing = migrateLegacyTodayRecord(userId, date)
   const now = new Date().toISOString()
+  const patchDietChoice = normalizeStoredDietChoice(patch.dietChoice)
   const next: DailyQuickInput = {
     userId,
     date,
@@ -120,12 +132,25 @@ export async function saveDailyQuickInput(
     ...(existing?.waterChoice ? { waterChoice: existing.waterChoice } : {}),
     ...(existing?.dietChoice ? { dietChoice: existing.dietChoice } : {}),
     ...(patch.waterChoice ? { waterChoice: patch.waterChoice } : {}),
-    ...(patch.dietChoice ? { dietChoice: patch.dietChoice } : {}),
+    ...(patchDietChoice ? { dietChoice: patchDietChoice } : {}),
   }
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
   emitQuickInputSync(next)
   return next
+}
+
+export function toDailyManualMetricPayload(input: DailyQuickInput): DailyManualMetricPayload {
+  const waterMap = {
+    under_3: 'under_3_glasses',
+    '3_to_5': 'three_to_five_glasses',
+    over_5: 'over_5_glasses',
+  } as const
+
+  return {
+    ...(input.waterChoice ? { water_intake_level: waterMap[input.waterChoice] } : {}),
+    ...(input.dietChoice ? { diet_flag: input.dietChoice } : {}),
+  }
 }
 
 export async function saveWaterChoice(
@@ -136,9 +161,9 @@ export async function saveWaterChoice(
   return saveDailyQuickInput(userId, { waterChoice: choice }, date)
 }
 
-export async function saveNotificationDietChoice(
+export async function saveDietChoice(
   userId: string,
-  choice: NotificationDietChoice,
+  choice: DietChoice,
   date = localDateKey(),
 ): Promise<DailyQuickInput> {
   return saveDailyQuickInput(userId, { dietChoice: choice }, date)
@@ -148,7 +173,7 @@ export function getSavedWaterChoice(userId: string): WaterChoice | null {
   return getTodayQuickInput(userId)?.waterChoice ?? null
 }
 
-export function getSavedNotificationDietChoice(userId: string): NotificationDietChoice | null {
+export function getSavedDietChoice(userId: string): DietChoice | null {
   return getTodayQuickInput(userId)?.dietChoice ?? null
 }
 
@@ -174,7 +199,7 @@ export function clearDemoWaterChoice(userId: string): void {
   const records = readDailyQuickInputs()
   const next = Object.fromEntries(Object.entries(records).map(([key, record]) => {
     if (record.userId !== userId) return [key, record]
-    const withoutWater: DailyQuickInput = { ...record }
+    const withoutWater = { ...record }
     delete withoutWater.waterChoice
     return [key, withoutWater]
   }))
@@ -182,11 +207,11 @@ export function clearDemoWaterChoice(userId: string): void {
   removeLegacyUserValue(LEGACY_WATER_STORAGE_KEY, userId)
 }
 
-export function clearDemoNotificationDietChoice(userId: string): void {
+export function clearDemoDietChoice(userId: string): void {
   const records = readDailyQuickInputs()
   const next = Object.fromEntries(Object.entries(records).map(([key, record]) => {
     if (record.userId !== userId) return [key, record]
-    const withoutDiet: DailyQuickInput = { ...record }
+    const withoutDiet = { ...record }
     delete withoutDiet.dietChoice
     return [key, withoutDiet]
   }))

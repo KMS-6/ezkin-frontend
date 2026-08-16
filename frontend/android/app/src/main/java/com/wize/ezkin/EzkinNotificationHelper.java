@@ -27,9 +27,9 @@ final class EzkinNotificationHelper {
     static final String ACTION_WATER_UNDER_3 = "com.wize.ezkin.notification.WATER_UNDER_3";
     static final String ACTION_WATER_3_TO_5 = "com.wize.ezkin.notification.WATER_3_TO_5";
     static final String ACTION_WATER_OVER_5 = "com.wize.ezkin.notification.WATER_OVER_5";
-    static final String ACTION_DIET_CLEAN = "com.wize.ezkin.notification.DIET_CLEAN";
     static final String ACTION_DIET_NORMAL = "com.wize.ezkin.notification.DIET_NORMAL";
-    static final String ACTION_DIET_STIMULATING = "com.wize.ezkin.notification.DIET_STIMULATING";
+    static final String ACTION_DIET_SPICY = "com.wize.ezkin.notification.DIET_SPICY";
+    static final String ACTION_DIET_LATE_NIGHT_MEAL = "com.wize.ezkin.notification.DIET_LATE_NIGHT_MEAL";
 
     static final String EXTRA_USER_ID = "ezkinUserId";
     static final String EXTRA_DATE = "ezkinDate";
@@ -113,9 +113,9 @@ final class EzkinNotificationHelper {
             null
         );
         builder
-            .addAction(action(context, "클린", ACTION_DIET_CLEAN, userId, date, 2221))
-            .addAction(action(context, "보통", ACTION_DIET_NORMAL, userId, date, 2222))
-            .addAction(action(context, "자극적", ACTION_DIET_STIMULATING, userId, date, 2223));
+            .addAction(action(context, "평소대로", ACTION_DIET_NORMAL, userId, date, 2221))
+            .addAction(action(context, "매운 음식", ACTION_DIET_SPICY, userId, date, 2222))
+            .addAction(action(context, "야식", ACTION_DIET_LATE_NIGHT_MEAL, userId, date, 2223));
         notify(context, builder);
     }
 

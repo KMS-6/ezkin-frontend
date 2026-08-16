@@ -2,8 +2,8 @@ export type LifeLogSource = 'automatic' | 'manual'
 
 export type LifeLogMetricType =
   | 'sleep'
-  | 'steps'
-  | 'rhythm'
+  | 'hrv'
+  | 'active_energy_kcal'
   | 'temperature'
   | 'humidity'
   | 'uv'
@@ -35,4 +35,5 @@ export interface TodayLifeLog {
   lifestyleEntries: LifeLogEntry[]
   environmentEntries: LifeLogEntry[]
   manualEntries: LifeLogEntry[]
+  healthBaselineStatus?: 'building' | 'established'
 }

@@ -1,5 +1,6 @@
 import { productCatalog } from '../mocks/products'
 import { todayProductRecommendations } from '../mocks/productRecommendations'
+import { getMockPersona } from '../mocks/personas'
 import type {
   Product,
   ProductWithRecommendation,
@@ -84,8 +85,9 @@ export async function getTodayProductRecommendations(
   userId: string,
 ): Promise<ProductWithRecommendation[]> {
   const products = await getMyProducts(userId)
+  const persona = getMockPersona(userId)
   const recommendations = USE_MOCK_API
-    ? todayProductRecommendations
+    ? persona?.product_recommendations ?? todayProductRecommendations
     : await request<TodayProductRecommendation[]>('/recommendations/today')
 
   return products.map((product) => {
@@ -96,12 +98,19 @@ export async function getTodayProductRecommendations(
 
     return {
       product,
-      recommendation: recommendation ?? getMockRecommendation(product.id),
+      recommendation: recommendation ?? (persona ? {
+        productId: product.id,
+        status: 'available',
+        summary: '오늘 안내에 포함되지 않았어요.',
+        reason: '현재 브리핑에서 별도 사용 안내가 없는 제품이에요.',
+        recommendedTime: 'BOTH',
+      } : getMockRecommendation(product.id)),
     }
   })
 }
 
 const categoryOrder: Record<Product['category'], number> = {
+  cleanser: 0,
   toner: 1,
   serum: 2,
   cream: 3,

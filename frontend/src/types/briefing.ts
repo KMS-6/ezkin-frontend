@@ -1,4 +1,4 @@
-import type { NotificationDietChoice } from './androidNotification'
+import type { DietChoice } from './androidNotification'
 
 export type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
 
@@ -11,7 +11,8 @@ export interface BriefingMetric {
   id: string
   label: string
   value: string
-  icon: 'sleep' | 'humidity' | 'uv'
+  icon: 'sleep' | 'hrv' | 'humidity' | 'uv'
+  source: 'health' | 'environment'
   description: string
 }
 
@@ -39,7 +40,5 @@ export interface BriefingData {
   metrics: BriefingMetric[]
   syncedSources: string[]
   syncedCount: number
-  dietChoice?: NotificationDietChoice
+  dietChoice?: DietChoice
 }
-
-export type DietChoice = 'usual' | 'spicy'

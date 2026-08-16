@@ -7,12 +7,9 @@ export type HealthPermissionStatus =
   | 'unavailable'
 
 export interface HealthAvailableMetrics {
-  sleep: boolean
-  steps: boolean
-  hrv: boolean
-  activity: boolean
-  cycle?: boolean
-  skinTemperature?: boolean
+  sleep_hours: boolean
+  hrv_ms: boolean
+  active_energy_kcal: boolean
 }
 
 export interface HealthConnection {
@@ -24,14 +21,9 @@ export interface HealthConnection {
 
 export interface HealthDataSnapshot {
   collectedAt: string
-  sleep?: {
-    durationMinutes: number
-  }
-  steps?: number
-  hrv?: number
-  activityMinutes?: number
-  cyclePhase?: string
-  skinTemperature?: number
+  sleep_hours?: number
+  hrv_ms?: number
+  active_energy_kcal?: number
 }
 
 /**

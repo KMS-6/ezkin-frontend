@@ -1,4 +1,4 @@
-export type ProductCategory = 'toner' | 'serum' | 'cream' | 'sunscreen'
+export type ProductCategory = 'cleanser' | 'toner' | 'serum' | 'cream' | 'sunscreen'
 
 export interface Product {
   id: string

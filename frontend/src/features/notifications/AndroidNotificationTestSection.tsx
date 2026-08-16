@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, CalendarClock, Check, ScanFace, Sunrise } from 'lucide-react'
 import { Card } from '../../components/ui/Card'
+import { isDemoScenarioEnabled } from '../../services/demoScenarioService'
 import {
   getNotificationPermissionStatus,
   isAndroidNotificationAvailable,
@@ -25,6 +26,7 @@ const permissionLabels: Record<AndroidNotificationPermissionStatus, string> = {
 }
 
 export function AndroidNotificationTestSection({ userId }: AndroidNotificationTestSectionProps) {
+  const showTestControls = isDemoScenarioEnabled()
   const isAvailable = isAndroidNotificationAvailable()
   const [permission, setPermission] = useState<AndroidNotificationPermissionStatus>(
     isAvailable ? 'prompt' : 'unsupported',
@@ -78,7 +80,7 @@ export function AndroidNotificationTestSection({ userId }: AndroidNotificationTe
   return (
     <section className="mt-7">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[16px] font-bold text-ez-text">알림 테스트</h2>
+        <h2 className="text-[16px] font-bold text-ez-text">알림</h2>
         <span className={permission === 'granted'
           ? 'inline-flex items-center gap-1 text-[11px] font-semibold text-ez-success'
           : 'text-[11px] font-medium text-ez-muted'}>
@@ -94,32 +96,37 @@ export function AndroidNotificationTestSection({ userId }: AndroidNotificationTe
           description={isAvailable ? '테스트할 때만 권한을 요청해요.' : 'Android 앱에서 테스트할 수 있어요.'}
           disabled={!isAvailable || busy !== null || permission === 'granted'}
           busy={busy === 'permission'}
+          actionLabel={permission === 'granted' ? '허용됨' : '허용'}
           onClick={() => void handlePermission()}
         />
-        <NotificationActionRow
-          icon={<Sunrise size={17} aria-hidden="true" />}
-          title="아침 브리핑 알림"
-          description="펼치면 오늘 루틴까지 보여요."
-          disabled={isDisabled}
-          busy={busy === 'morning'}
-          onClick={() => void handleTest('morning')}
-        />
-        <NotificationActionRow
-          icon={<CalendarClock size={17} aria-hidden="true" />}
-          title="저녁 기록 알림"
-          description="물과 식단을 알림에서 바로 선택해요."
-          disabled={isDisabled}
-          busy={busy === 'evening'}
-          onClick={() => void handleTest('evening')}
-        />
-        <NotificationActionRow
-          icon={<ScanFace size={17} aria-hidden="true" />}
-          title="주간 피부 스캔 알림"
-          description="알림을 누르면 피부 스캔으로 이동해요."
-          disabled={isDisabled}
-          busy={busy === 'scan'}
-          onClick={() => void handleTest('scan')}
-        />
+        {showTestControls && (
+          <>
+            <NotificationActionRow
+              icon={<Sunrise size={17} aria-hidden="true" />}
+              title="아침 브리핑 알림"
+              description="펼치면 오늘 루틴까지 보여요."
+              disabled={isDisabled}
+              busy={busy === 'morning'}
+              onClick={() => void handleTest('morning')}
+            />
+            <NotificationActionRow
+              icon={<CalendarClock size={17} aria-hidden="true" />}
+              title="저녁 기록 알림"
+              description="물과 식단을 알림에서 바로 선택해요."
+              disabled={isDisabled}
+              busy={busy === 'evening'}
+              onClick={() => void handleTest('evening')}
+            />
+            <NotificationActionRow
+              icon={<ScanFace size={17} aria-hidden="true" />}
+              title="주간 피부 스캔 알림"
+              description="알림을 누르면 피부 스캔으로 이동해요."
+              disabled={isDisabled}
+              busy={busy === 'scan'}
+              onClick={() => void handleTest('scan')}
+            />
+          </>
+        )}
       </Card>
 
       {feedback && (
@@ -137,6 +144,7 @@ function NotificationActionRow({
   description,
   disabled,
   busy,
+  actionLabel = '테스트',
   onClick,
 }: {
   icon: React.ReactNode
@@ -144,6 +152,7 @@ function NotificationActionRow({
   description: string
   disabled: boolean
   busy: boolean
+  actionLabel?: string
   onClick: () => void
 }) {
   return (
@@ -160,7 +169,7 @@ function NotificationActionRow({
         <span className="block text-[13px] font-semibold text-ez-text">{title}</span>
         <span className="mt-0.5 block text-[11px] font-normal text-ez-muted">{description}</span>
       </span>
-      <span className="text-[11px] font-semibold text-ez-primary">{busy ? '준비 중' : '테스트'}</span>
+      <span className="text-[11px] font-semibold text-ez-primary">{busy ? '준비 중' : actionLabel}</span>
     </button>
   )
 }
