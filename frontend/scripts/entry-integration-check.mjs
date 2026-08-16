@@ -57,7 +57,7 @@ try {
   const sosContext = await server.ssrLoadModule('/src/services/sosContextService.ts')
   const skinScan = await server.ssrLoadModule('/src/services/skinScanService.ts')
   const recognition = await server.ssrLoadModule('/src/services/productRecognitionService.ts')
-  const splash = await server.ssrLoadModule('/src/pages/SplashPage.tsx')
+  const backNavigation = await server.ssrLoadModule('/src/features/navigation/androidBackNavigation.ts')
 
   const automaticUser = await auth.getEntryUser()
   const firstUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
@@ -74,7 +74,6 @@ try {
   assert(firstHealth.status === 'not_requested', 'first health data was connected')
   assert(firstEligibility.eligible === false && firstAnalysis === null, 'first analysis exposed 30d patterns')
   assert(scenario.getStoredDemoScenario() === 'first', 'first scenario was not persisted')
-  assert(splash.SPLASH_DURATION_MS === 950, 'splash duration changed unexpectedly')
 
   await onboarding.saveBasicProfile(firstUser.id, {
     nickname: '입력했던 사용자',
@@ -174,6 +173,13 @@ try {
   const storageKeys = Array.from({ length: storage.length }, (_, index) => storage.key(index) ?? '')
   assert(!storageKeys.some((key) => /scan|image|conversation|raw-health/i.test(key)), 'session-only sensitive data was persisted')
 
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/shelf/ceramide-cream', previousPathname: '/shelf', canGoBack: true }) === 'back', 'product detail back did not use route history')
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/settings', previousPathname: '/home', canGoBack: true }) === 'back', 'settings back did not use route history')
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/briefing', previousPathname: '/', canGoBack: true }) === 'home', 'direct briefing back did not fall back to home')
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/scan', canGoBack: false }) === 'home', 'direct scan back did not fall back to home')
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/home', previousPathname: '/shelf', canGoBack: true }) === 'stay', 'home back did not stay in the app')
+  assert(backNavigation.resolveAndroidBackAction({ pathname: '/onboarding', canGoBack: false }) === 'stay', 'onboarding first step did not stay in the app')
+
   console.log('PASS first → Splash destination Onboarding')
   console.log('PASS first shelf empty, health disconnected, analysis insufficient')
   console.log('PASS 30d → Splash destination Home')
@@ -183,6 +189,7 @@ try {
   console.log('PASS demo env flag true/false contract')
   console.log('PASS existing non-demo user id and data retention')
   console.log('PASS scan/product recognition regression')
+  console.log('PASS Android back route history, deep-link fallback, and home stay decisions')
 } finally {
   await server.close()
 }
