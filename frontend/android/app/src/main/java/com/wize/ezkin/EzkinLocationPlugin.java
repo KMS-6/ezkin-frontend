@@ -157,8 +157,8 @@ public class EzkinLocationPlugin extends Plugin {
     }
 
     private String enabledProvider(LocationManager manager) {
-        if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) return LocationManager.GPS_PROVIDER;
         if (manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) return LocationManager.NETWORK_PROVIDER;
+        if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) return LocationManager.GPS_PROVIDER;
         return null;
     }
 
