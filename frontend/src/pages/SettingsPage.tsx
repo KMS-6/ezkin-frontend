@@ -27,8 +27,11 @@ import {
   disconnectHealthData,
   getHealthConnection,
 } from '../services/healthConnectionService'
-import { getOnboardingProfile } from '../services/onboardingService'
-import { connectWeatherData, disconnectWeatherData } from '../services/weatherConnectionService'
+import {
+  connectWeatherData,
+  disconnectWeatherData,
+  reconcileWeatherConnectionPermission,
+} from '../services/weatherConnectionService'
 import type { HealthConnection } from '../types/healthConnection'
 import type { OnboardingProfile } from '../types/onboarding'
 import { getAvailableHealthMetricLabels } from '../utils/healthMetrics'
@@ -55,7 +58,7 @@ export function SettingsPage() {
 
     try {
       const [nextProfile, nextHealthConnection] = await Promise.all([
-        getOnboardingProfile(user.id),
+        reconcileWeatherConnectionPermission(user.id),
         getHealthConnection(user.id),
       ])
       setProfile(nextProfile)

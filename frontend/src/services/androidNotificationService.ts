@@ -9,6 +9,7 @@ import type {
   PendingNavigation,
   PendingQuickInputs,
 } from '../types/androidNotification'
+import { getTodayDateKey } from '../utils/appDateTime'
 
 const CHANNEL_ID = 'ezkin-daily-care'
 const MORNING_NOTIFICATION_ID = 2101
@@ -69,13 +70,6 @@ function scheduledAt(): Date {
   return new Date(Date.now() + TEST_DELAY_MS)
 }
 
-function localDateKey(date = new Date()): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 export async function sendMorningBriefingTestNotification(userId: string): Promise<void> {
   await requireNotificationPermission()
   await ensureNotificationChannel()
@@ -119,7 +113,7 @@ export async function sendEveningQuickInputTestNotification(userId: string): Pro
   await ensureNotificationChannel()
   await EzkinNotificationNative.scheduleEveningQuickInputTest({
     userId,
-    date: localDateKey(),
+    date: getTodayDateKey(userId),
     delayMs: TEST_DELAY_MS,
   })
 }

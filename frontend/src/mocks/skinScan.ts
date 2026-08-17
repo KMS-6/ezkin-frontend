@@ -1,9 +1,9 @@
 import type { SkinScanResult } from '../types/skinScan'
 
-export function createMockSkinScanResult(): SkinScanResult {
+export function createMockSkinScanResult(capturedAt: string): SkinScanResult {
   return {
     id: crypto.randomUUID(),
-    capturedAt: new Date().toISOString(),
+    capturedAt,
     overallStatus: '조금 예민해 보여요.',
     observedAreas: ['턱 주변', '볼 주변'],
     summary: '오늘은 장벽을 쉬게 해주세요.',

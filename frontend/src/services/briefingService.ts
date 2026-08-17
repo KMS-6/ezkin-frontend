@@ -5,6 +5,8 @@ import type { CareContextPreviewRequest, CareContextPreviewResponse } from '../t
 import { getSavedDietChoice } from './quickInputService'
 import { getOnboardingProfile } from './onboardingService'
 import { isCareContextApiEnabled, previewCareContext } from './careContextService'
+import { getCurrentGreeting, getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
+import { getCurrentWeatherData, type CurrentEnvironmentData } from './weatherDataService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -40,9 +42,63 @@ interface CareContextBriefingOptions {
 
 function getMetricNumber(briefing: BriefingData, id: 'humidity' | 'uv'): number | undefined {
   const metric = briefing.metrics.find((item) => item.id === id && item.source === 'environment')
-  if (!metric) return undefined
+  if (!metric) return id === 'humidity' ? briefing.weather.humidity : briefing.weather.uvIndex
   const value = Number.parseFloat(metric.value.replace('%', '').trim())
   return Number.isFinite(value) ? value : undefined
+}
+
+function mapCurrentEnvironmentMetrics(
+  environment: CurrentEnvironmentData,
+): BriefingData['metrics'] {
+  return [
+    ...(environment.humidityPercent !== undefined ? [{
+      id: 'humidity',
+      label: '습도',
+      value: `${environment.humidityPercent}%`,
+      icon: 'humidity' as const,
+      source: 'environment' as const,
+      description: `현재 습도 ${environment.humidityPercent}%예요.`,
+    }] : []),
+    ...(environment.uvIndex !== undefined ? [{
+      id: 'uv',
+      label: 'UV',
+      value: String(environment.uvIndex),
+      icon: 'uv' as const,
+      source: 'environment' as const,
+      description: `현재 UV 지수는 ${environment.uvIndex}예요.`,
+    }] : []),
+  ]
+}
+
+async function applyCurrentEnvironment(
+  briefing: BriefingData,
+  userId?: string,
+): Promise<BriefingData> {
+  if (!userId || isDemoPersonaUser(userId)) return briefing
+
+  const profile = await getOnboardingProfile(userId)
+  const healthMetrics = briefing.metrics.filter((metric) => metric.source === 'health')
+  const environment = profile.weatherConnected
+    ? await getCurrentWeatherData(userId)
+    : undefined
+  const environmentMetrics = environment ? mapCurrentEnvironmentMetrics(environment) : []
+
+  return {
+    ...briefing,
+    weather: environment
+      ? {
+          ...(environment.temperatureC !== undefined ? { temperature: environment.temperatureC } : {}),
+          ...(environment.humidityPercent !== undefined ? { humidity: environment.humidityPercent } : {}),
+          ...(environment.uvIndex !== undefined ? { uvIndex: environment.uvIndex } : {}),
+        }
+      : {},
+    metrics: [...healthMetrics, ...environmentMetrics],
+    syncedSources: [
+      ...healthMetrics.map((metric) => metric.label),
+      ...(environmentMetrics.length ? ['날씨'] : []),
+    ],
+    syncedCount: healthMetrics.length + environmentMetrics.length,
+  }
 }
 
 function replaceEnvironmentFactors(
@@ -92,6 +148,19 @@ function mapObservedEnvironmentFactors(
   return [...metrics.values()]
 }
 
+function mergeEnvironmentFactors(
+  briefing: BriefingData,
+  observedMetrics: BriefingData['metrics'],
+): BriefingData['metrics'] {
+  const metrics = new Map(
+    briefing.metrics
+      .filter((metric) => metric.source === 'environment')
+      .map((metric) => [metric.id, metric]),
+  )
+  observedMetrics.forEach((metric) => metrics.set(metric.id, metric))
+  return [...metrics.values()]
+}
+
 export async function applyCareContextToBriefing(
   briefing: BriefingData,
   options: CareContextBriefingOptions = {},
@@ -112,13 +181,14 @@ export async function applyCareContextToBriefing(
 
   try {
     const careContext = await (options.requestPreview ?? previewCareContext)(request)
+    const observedMetrics = mapObservedEnvironmentFactors(careContext, humidity, uvIndex)
     return replaceEnvironmentFactors(
       briefing,
-      mapObservedEnvironmentFactors(careContext, humidity, uvIndex),
+      mergeEnvironmentFactors(briefing, observedMetrics),
       careContext,
     )
   } catch {
-    return replaceEnvironmentFactors(briefing, [])
+    return replaceEnvironmentFactors(briefing, mergeEnvironmentFactors(briefing, []))
   }
 }
 
@@ -167,6 +237,7 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
         weather: {
           temperature: persona.weather.temperature_c,
           humidity: persona.weather.humidity_percent,
+          uvIndex: persona.weather.uv_index,
         },
         skinHeadline: persona.briefing.headline,
         riskLabel: riskLabels[persona.briefing.risk_level],
@@ -182,18 +253,13 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
       }
     }
 
-    const baseMetrics = todayBriefingMock.metrics
-      .filter((metric) => (
-        metric.source === 'health' ? false : profile?.weatherConnected !== false
-      ))
-    const metrics = baseMetrics
+    const metrics: BriefingData['metrics'] = []
     const summary = profile
-      ? profile.weatherConnected
-        ? '오늘 환경 흐름을 바탕으로 자극을 조금 줄여도 좋아요.'
-        : '오늘은 자극적인 단계를 줄이고 피부를 편안하게 쉬어가세요.'
+      ? '오늘은 자극적인 단계를 줄이고 피부를 편안하게 쉬어가세요.'
       : todayBriefingMock.summary
     return Promise.resolve({
       ...todayBriefingMock,
+      weather: {},
       metrics,
       summary,
       ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
@@ -203,8 +269,13 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
 }
 
 export async function getTodayBriefing(userId?: string): Promise<BriefingData> {
-  const briefing = await getBaseTodayBriefing(userId)
-  return isCareContextApiEnabled()
-    ? replaceEnvironmentFactors(briefing, [])
-    : briefing
+  const briefing = await applyCurrentEnvironment(await getBaseTodayBriefing(userId), userId)
+  const datedBriefing = isDemoPersonaUser(userId)
+    ? briefing
+    : {
+        ...briefing,
+        greeting: getCurrentGreeting(userId),
+        dateLabel: getTodayDateLabel(userId),
+      }
+  return datedBriefing
 }

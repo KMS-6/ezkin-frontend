@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(EzkinNotificationPlugin.class);
+        registerPlugin(EzkinLocationPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

@@ -144,7 +144,7 @@ export function ScanPage() {
     setState('analyzing')
 
     try {
-      const nextResult = await analyzeSkin(capturedImage)
+      const nextResult = await analyzeSkin(capturedImage, user?.id)
       if (analysisRunRef.current !== runId) return
       if (user) {
         rememberLatestSkinScanResult(user.id, nextResult)

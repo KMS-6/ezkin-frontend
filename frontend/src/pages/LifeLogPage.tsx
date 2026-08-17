@@ -75,12 +75,18 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
           ) : undefined}
         />
         {lifeLog.connections.lifeDataConnected ? (
-          <>
-            <LifeLogMetricGroup entries={lifeLog.lifestyleEntries} tone="health" />
-            {lifeLog.healthBaselineStatus === 'building' && (
-              <p className="mt-2 text-[11px] text-ez-muted">개인 평균을 만드는 중이에요.</p>
-            )}
-          </>
+          lifeLog.lifestyleEntries.length > 0 ? (
+            <>
+              <LifeLogMetricGroup entries={lifeLog.lifestyleEntries} tone="health" />
+              {lifeLog.healthBaselineStatus === 'building' && (
+                <p className="mt-2 text-[11px] text-ez-muted">개인 평균을 만드는 중이에요.</p>
+              )}
+            </>
+          ) : (
+            <Card className="px-4 py-4">
+              <p className="text-[12px] text-ez-muted">아직 가져온 건강 데이터가 없어요.</p>
+            </Card>
+          )
         ) : (
           <ConnectionEmptyState kind="health" />
         )}
@@ -88,10 +94,10 @@ function LifeLogContent({ lifeLog }: { lifeLog: TodayLifeLog }) {
 
       <section className="mt-7">
         <SectionHeader title="Environment" />
-        {lifeLog.connections.weatherConnected ? (
+        {lifeLog.connections.weatherConnected && lifeLog.environmentEntries.length > 0 ? (
           <LifeLogMetricGroup entries={lifeLog.environmentEntries} layout="columns" tone="environment" />
         ) : (
-          <ConnectionEmptyState kind="environment" />
+          <ConnectionEmptyState kind="environment" connected={lifeLog.connections.weatherConnected} />
         )}
       </section>
 

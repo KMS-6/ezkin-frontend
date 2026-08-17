@@ -4,9 +4,10 @@ import { Card } from '../../../components/ui/Card'
 
 interface ConnectionEmptyStateProps {
   kind: 'health' | 'environment'
+  connected?: boolean
 }
 
-export function ConnectionEmptyState({ kind }: ConnectionEmptyStateProps) {
+export function ConnectionEmptyState({ kind, connected = false }: ConnectionEmptyStateProps) {
   const isHealth = kind === 'health'
   return (
     <Card className="flex items-start gap-3.5 p-4">
@@ -15,10 +16,14 @@ export function ConnectionEmptyState({ kind }: ConnectionEmptyStateProps) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[14px] font-semibold text-ez-text">
-          {isHealth ? '워치가 연결되어 있지 않아요.' : '날씨가 연결되어 있지 않아요.'}
+          {isHealth
+            ? '워치가 연결되어 있지 않아요.'
+            : connected ? '날씨 정보를 아직 불러올 수 없어요.' : '날씨가 연결되어 있지 않아요.'}
         </p>
         <p className="mt-1 text-[12px] font-normal leading-5 text-ez-muted">
-          {isHealth ? '수면과 HRV를 연결하면 피부 변화와 함께 볼 수 있어요.' : '연결하지 않아도 다른 기능은 그대로 사용할 수 있어요.'}
+          {isHealth
+            ? '수면과 HRV를 연결하면 피부 변화와 함께 볼 수 있어요.'
+            : connected ? '연결은 완료됐어요. 정보가 준비되면 여기에 보여드릴게요.' : '연결하지 않아도 다른 기능은 그대로 사용할 수 있어요.'}
         </p>
         {isHealth && (
           <Link

@@ -5,6 +5,7 @@ import type {
   WaterChoice,
 } from '../types/androidNotification'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
+import { getTodayDateKey } from '../utils/appDateTime'
 
 const QUICK_INPUT_STORAGE_KEY = 'ezkin:daily-quick-inputs'
 const LEGACY_WATER_STORAGE_KEY = 'ezkin:water-choices'
@@ -17,13 +18,6 @@ type DailyQuickInputPatch = Pick<DailyQuickInput, 'waterChoice' | 'dietChoice'> 
 type StoredDailyQuickInput = Omit<DailyQuickInput, 'waterChoice' | 'dietChoice'> & {
   waterChoice?: unknown
   dietChoice?: unknown
-}
-
-function localDateKey(date = new Date()): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
 }
 
 function recordKey(userId: string, date: string): string {
@@ -109,7 +103,7 @@ function emitQuickInputSync(record: DailyQuickInput): void {
 
 export function getTodayQuickInput(
   userId: string,
-  date = localDateKey(),
+  date = getTodayDateKey(userId),
 ): DailyQuickInput | null {
   return migrateLegacyTodayRecord(userId, date)
 }
@@ -117,7 +111,7 @@ export function getTodayQuickInput(
 export async function saveDailyQuickInput(
   userId: string,
   patch: DailyQuickInputPatch,
-  date = localDateKey(),
+  date = getTodayDateKey(userId),
 ): Promise<DailyQuickInput> {
   const records = readDailyQuickInputs()
   const key = recordKey(userId, date)
@@ -156,7 +150,7 @@ export function toDailyManualMetricPayload(input: DailyQuickInput): DailyManualM
 export async function saveWaterChoice(
   userId: string,
   choice: WaterChoice,
-  date = localDateKey(),
+  date = getTodayDateKey(userId),
 ): Promise<DailyQuickInput> {
   return saveDailyQuickInput(userId, { waterChoice: choice }, date)
 }
@@ -164,7 +158,7 @@ export async function saveWaterChoice(
 export async function saveDietChoice(
   userId: string,
   choice: DietChoice,
-  date = localDateKey(),
+  date = getTodayDateKey(userId),
 ): Promise<DailyQuickInput> {
   return saveDailyQuickInput(userId, { dietChoice: choice }, date)
 }

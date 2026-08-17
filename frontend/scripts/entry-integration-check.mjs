@@ -69,9 +69,11 @@ try {
   const scanCountdown = await server.ssrLoadModule('/src/features/scan/scanCountdown.ts')
   const healthMetrics = await server.ssrLoadModule('/src/utils/healthMetrics.ts')
   const weatherConnection = await server.ssrLoadModule('/src/services/weatherConnectionService.ts')
+  const weatherData = await server.ssrLoadModule('/src/services/weatherDataService.ts')
   const quickCare = await server.ssrLoadModule('/src/services/quickCareService.ts')
   const careContext = await server.ssrLoadModule('/src/services/careContextService.ts')
   const sosService = await server.ssrLoadModule('/src/services/sosService.ts')
+  const appDateTime = await server.ssrLoadModule('/src/utils/appDateTime.ts')
 
   const automaticUser = await auth.getEntryUser()
   const freshNormalUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
@@ -84,17 +86,114 @@ try {
   assert((await analysis.getTriggerAnalysisDetail(freshNormalUser.id, 'scn_c1_20')) === null, 'Persona Pattern leaked into the fresh normal user')
   assert(quickInput.getTodayQuickInput(freshNormalUser.id) === null, 'Persona quick input leaked into the fresh normal user')
   assert(scenario.getStoredDemoScenario() === null, 'Demo OFF was stored as a Persona scenario')
+  const normalLocalTime = new Date(2026, 0, 2, 19, 30, 0)
+  assert(appDateTime.getTodayDateKey(freshNormalUser.id, normalLocalTime) === '2026-01-02', 'normal user today key does not use the device-local calendar date')
+  assert(appDateTime.getTodayDateLabel(freshNormalUser.id, normalLocalTime) === '1월 2일 · 금요일', 'normal user date label is not device-local')
+  assert(appDateTime.getCurrentGreeting(freshNormalUser.id, normalLocalTime) === '편안한 저녁이에요', 'normal user greeting does not use local time')
+  assert(appDateTime.getCurrentRoutinePeriod(freshNormalUser.id, normalLocalTime) === 'pm', 'normal user routine period does not use local time')
+  assert(appDateTime.getScanTimestamp(freshNormalUser.id, normalLocalTime) === normalLocalTime.toISOString(), 'normal user timestamp does not represent the current device time')
+  const normalBriefing = await briefing.getTodayBriefing(freshNormalUser.id)
+  assert(normalBriefing.dateLabel === appDateTime.getTodayDateLabel(freshNormalUser.id) && normalBriefing.greeting === appDateTime.getCurrentGreeting(freshNormalUser.id), 'normal Home briefing retained a fixed demo date or greeting')
+  const connectedEmptyHealthUserId = 'connected-empty-health-user'
+  await onboarding.saveConnectionSettings(connectedEmptyHealthUserId, {
+    lifeDataConnected: true,
+    weatherConnected: false,
+  })
+  const connectedEmptyHealthLifeLog = await lifeLog.getTodayLifeLog(connectedEmptyHealthUserId)
+  assert(connectedEmptyHealthLifeLog.connections.lifeDataConnected, 'normal connected Watch state was not preserved')
+  assert(connectedEmptyHealthLifeLog.lifestyleEntries.length === 0, 'normal connected Watch fabricated Health values')
+  assert(connectedEmptyHealthLifeLog.healthBaselineStatus === undefined, 'normal connected Watch without Health data incorrectly started a baseline')
+  const nonBlockingWeatherUserId = 'non-blocking-weather-user'
+  const nonBlockingStartedAt = Date.now()
+  const nonBlockingWeather = await weatherData.getCurrentWeatherData(nonBlockingWeatherUserId, {
+    positionRequester: () => new Promise(() => {}),
+  })
+  assert(nonBlockingWeather === undefined && Date.now() - nonBlockingStartedAt < 100, 'missing weather data blocked initial Home/Life Log rendering')
+  weatherData.clearCurrentWeatherData(nonBlockingWeatherUserId)
   const weatherSettingsUserId = 'settings-weather-user'
   await onboarding.completeOnboardingProfile(weatherSettingsUserId)
   const skippedWeatherProfile = await onboarding.getOnboardingProfile(weatherSettingsUserId)
   assert(Boolean(skippedWeatherProfile.completedAt) && !skippedWeatherProfile.weatherConnected, 'weather onboarding skip state was not preserved')
   assert((await lifeLog.getTodayLifeLog(weatherSettingsUserId)).environmentEntries.length === 0, 'disconnected weather fabricated Environment values')
 
+  let explicitWeatherPermissionRequests = 0
+  const deniedWeatherRequest = weatherConnection.connectWeatherData(weatherSettingsUserId, async () => {
+    explicitWeatherPermissionRequests += 1
+    return 'denied'
+  })
+  assert(explicitWeatherPermissionRequests === 1, 'normal weather permission request lost the synchronous click activation')
+  const deniedWeather = await deniedWeatherRequest
+  assert(deniedWeather.status === 'denied' && !deniedWeather.profile.weatherConnected, 'denied location permission connected weather data')
+
   const unavailableWeather = await weatherConnection.connectWeatherData(weatherSettingsUserId, async () => 'unavailable')
   assert(unavailableWeather.status === 'unavailable' && !unavailableWeather.profile.weatherConnected, 'unavailable location permission connected weather data')
   const connectedWeather = await weatherConnection.connectWeatherData(weatherSettingsUserId, async () => 'granted')
   assert(connectedWeather.status === 'granted' && connectedWeather.profile.weatherConnected, 'Settings could not connect weather after onboarding skip')
   assert((await onboarding.getOnboardingProfile(weatherSettingsUserId)).weatherConnected, 'successful weather connection did not persist in Settings state')
+  assert((await lifeLog.getTodayLifeLog(weatherSettingsUserId)).environmentEntries.length === 0, 'location permission fabricated weather provider values')
+
+  let weatherProviderUrl = ''
+  let weatherProviderCalls = 0
+  const currentEnvironment = await weatherData.refreshCurrentWeatherData(weatherSettingsUserId, {
+    now: () => new Date(),
+    positionRequester: async () => ({ coords: { latitude: 37.5665, longitude: 126.978 } }),
+    fetcher: async (input) => {
+      weatherProviderCalls += 1
+      weatherProviderUrl = String(input)
+      return new Response(JSON.stringify({
+        current: {
+          time: '2026-08-17T18:30',
+          temperature_2m: 31.4,
+          relative_humidity_2m: 57,
+          uv_index: 3.2,
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    },
+  })
+  assert(weatherProviderUrl.startsWith('https://api.open-meteo.com/v1/forecast?'), 'normal weather did not use Open-Meteo')
+  const weatherProviderRequest = new URL(weatherProviderUrl)
+  assert(weatherProviderRequest.searchParams.get('current') === 'temperature_2m,relative_humidity_2m,uv_index' && weatherProviderRequest.searchParams.get('timezone') === 'auto', 'Open-Meteo current fields or timezone are incorrect')
+  assert(currentEnvironment?.temperatureC === 31.4 && currentEnvironment.humidityPercent === 57 && currentEnvironment.uvIndex === 3.2, 'Open-Meteo response was not mapped to the environment domain')
+  const realWeatherBriefing = await briefing.getTodayBriefing(weatherSettingsUserId)
+  const realWeatherLifeLog = await lifeLog.getTodayLifeLog(weatherSettingsUserId)
+  const normalRenderedFactors = realWeatherBriefing.contributingFactors ?? realWeatherBriefing.metrics
+  assert(realWeatherBriefing.weather.temperature === 31.4 && realWeatherBriefing.weather.humidity === 57 && realWeatherBriefing.weather.uvIndex === 3.2, 'Home/Briefing did not reuse the current environment data')
+  assert(realWeatherLifeLog.environmentEntries.map((entry) => entry.value).join(',') === '31.4,57%,3.2', 'Life Log did not show the same temperature, humidity, and UV')
+  assert(normalRenderedFactors.some((item) => item.source === 'environment' && item.id === 'humidity' && item.value === '57%') && normalRenderedFactors.some((item) => item.id === 'uv' && item.value === '3.2'), 'normal Home/Briefing hid real Environment factors')
+  assert(!normalRenderedFactors.some((item) => item.source === 'health') && (await products.getMyProducts(weatherSettingsUserId)).length === 0, 'Environment rendering incorrectly depended on Health or owned products')
+  assert(weatherProviderCalls === 1, 'Home/Life Log duplicated the cached Open-Meteo request')
+  let realWeatherCareRequest = null
+  const realWeatherCareBriefing = await briefing.applyCareContextToBriefing(realWeatherBriefing, {
+    enabled: true,
+    requestPreview: async (request) => {
+      realWeatherCareRequest = request
+      return {
+        date: '2026-08-17',
+        care_mode: 'basic',
+        observed_factors: [],
+        notice: '생활·환경 데이터를 사용한 비의료적 참고 정보입니다.',
+      }
+    },
+  })
+  assert(realWeatherCareRequest?.humidity === 57 && realWeatherCareRequest?.uv_index === 3.2, 'Care Context did not receive the same real humidity and UV')
+  assert(realWeatherCareBriefing.contributingFactors.some((item) => item.id === 'humidity' && item.value === '57%') && realWeatherCareBriefing.contributingFactors.some((item) => item.id === 'uv' && item.value === '3.2'), 'Care Context with no selected factors hid valid real Environment data')
+  const storedWeather = storage.getItem(`ezkin:current-environment:${weatherSettingsUserId}`) ?? ''
+  assert(!/latitude|longitude|37\.5665|126\.978/.test(storedWeather), 'location coordinates were persisted with environment data')
+  const reconciledWeather = await weatherConnection.reconcileWeatherConnectionPermission(weatherSettingsUserId, async () => 'prompt')
+  assert(!reconciledWeather.weatherConnected, 'stored weather consent incorrectly skipped a real permission request')
+  await weatherConnection.connectWeatherData(weatherSettingsUserId, async () => 'granted')
+  weatherData.clearCurrentWeatherData(weatherSettingsUserId)
+  let weatherProviderFailed = false
+  try {
+    await weatherData.refreshCurrentWeatherData(weatherSettingsUserId, {
+      positionRequester: async () => ({ coords: { latitude: 37.5665, longitude: 126.978 } }),
+      fetcher: async () => { throw new Error('provider unavailable') },
+    })
+  } catch {
+    weatherProviderFailed = true
+  }
+  assert(weatherProviderFailed && (await onboarding.getOnboardingProfile(weatherSettingsUserId)).weatherConnected, 'weather failure incorrectly changed permission consent')
+  assert((await lifeLog.getTodayLifeLog(weatherSettingsUserId)).environmentEntries.length === 0, 'weather failure generated fake Environment values')
   await weatherConnection.disconnectWeatherData(weatherSettingsUserId)
   assert(!(await onboarding.getOnboardingProfile(weatherSettingsUserId)).weatherConnected, 'weather disconnect did not persist')
   assert((await lifeLog.getTodayLifeLog(weatherSettingsUserId)).environmentEntries.length === 0, 'weather values remained visible after disconnect')
@@ -130,7 +229,30 @@ try {
   assert(patternA === null, 'A exposed Pattern Analysis without an available completed result')
   assert(skinScan.getRecentTriggerAnalysisReference(userA.id) === null, 'A exposed a previous Pattern reference')
   assert(scenario.getStoredDemoScenario() === 'A', 'A scenario was not persisted')
+  let demoWeatherPermissionRequests = 0
+  const demoWeatherConnection = await weatherConnection.connectWeatherData(userA.id, async () => {
+    demoWeatherPermissionRequests += 1
+    return 'denied'
+  })
+  assert(demoWeatherPermissionRequests === 0 && demoWeatherConnection.profile.weatherConnected, 'Demo A requested real location or lost fixed environment data')
+  let demoWeatherPositionRequests = 0
+  let demoWeatherProviderRequests = 0
+  const demoProviderResult = await weatherData.refreshCurrentWeatherData(userA.id, {
+    positionRequester: async () => {
+      demoWeatherPositionRequests += 1
+      return { coords: { latitude: 0, longitude: 0 } }
+    },
+    fetcher: async () => {
+      demoWeatherProviderRequests += 1
+      throw new Error('Demo must not request Open-Meteo')
+    },
+  })
+  assert(demoProviderResult === undefined && demoWeatherPositionRequests === 0 && demoWeatherProviderRequests === 0, 'Demo A called real location or Open-Meteo')
   await quickInput.saveDietChoice(userA.id, 'normal')
+  assert(appDateTime.getTodayDateKey(userA.id, normalLocalTime) === '2026-08-15', 'A persona demo date changed with the device clock')
+  assert(appDateTime.getTodayDateLabel(userA.id, normalLocalTime) === '8월 15일' && appDateTime.getCurrentGreeting(userA.id, normalLocalTime) === '좋은 아침이에요', 'A persona Home date or greeting changed')
+  assert(appDateTime.getCurrentRoutinePeriod(userA.id, normalLocalTime) === 'am', 'A persona routine period changed with the device clock')
+  assert(quickInput.getTodayQuickInput(userA.id)?.date === '2026-08-15', 'persona Quick Input did not keep the fixed demo date')
 
   const userB = await scenario.activateDemoScenario('B')
   const profileB = await onboarding.getOnboardingProfile(userB.id)
@@ -240,6 +362,7 @@ try {
 
   const noEnvironmentBriefing = {
     ...briefingC,
+    weather: {},
     metrics: briefingC.metrics.filter((item) => item.source === 'health'),
   }
   let missingEnvironmentCalls = 0
@@ -256,8 +379,8 @@ try {
     enabled: true,
     requestPreview: async () => { throw new Error('backend unavailable') },
   })
-  assert(failedCareContextBriefing.contributingFactors.every((item) => item.source === 'health'), 'failed Care Context left fake backend environment factors')
-  assert(failedCareContextBriefing.contributingFactors.some((item) => item.id === 'sleep') && failedCareContextBriefing.metrics.some((item) => item.id === 'humidity'), 'failed Care Context blocked Health or removed raw environment data')
+  assert(failedCareContextBriefing.contributingFactors.some((item) => item.id === 'sleep') && failedCareContextBriefing.contributingFactors.some((item) => item.id === 'humidity' && item.value === '23%'), 'failed Care Context blocked Health or hid valid raw environment data')
+  assert(failedCareContextBriefing.contributingFactors.filter((item) => item.source === 'environment').every((item) => briefingC.metrics.some((rawMetric) => rawMetric.id === item.id && rawMetric.value === item.value)), 'failed Care Context fabricated Environment values')
 
   let disabledCareContextCalls = 0
   const careDisabledBriefing = await briefing.applyCareContextToBriefing(briefingC, {
@@ -431,7 +554,8 @@ try {
   assert(quickInput.getSavedDietChoice(existingUserId) === 'spicy', 'existing quick choice was replaced')
 
   const demoImage = new Blob(['ezkin-demo-image'], { type: 'image/jpeg' })
-  const skinResult = await skinScan.analyzeSkin(demoImage)
+  const scanStartedAt = Date.now()
+  const skinResult = await skinScan.analyzeSkin(demoImage, existingUserId)
   skinScan.rememberLatestSkinScanResult(existingUserId, skinResult)
   const recentTriggerReference = skinScan.getRecentTriggerAnalysisReference(existingUserId)
   const reopenedTrigger = recentTriggerReference
@@ -443,6 +567,8 @@ try {
     availableProducts: catalog,
   })
   assert(Boolean(skinResult.id && skinResult.capturedAt), 'skin scan contract regressed')
+  assert(new Date(skinResult.capturedAt).getTime() >= scanStartedAt, 'normal user scan timestamp is not current')
+  assert(appDateTime.getScanTimestamp(userC.id, normalLocalTime) === '2026-08-14T08:00:00Z', 'C persona scan timestamp no longer uses fixed persona data')
   assert(recentTriggerReference?.scanId === skinResult.id && reopenedTrigger?.scan_id === skinResult.id, 'completed Pattern Analysis could not be reopened without rescanning')
   assert(recognitionResult.candidates.length > 0 && recognitionResult.candidates.length <= 3, 'product recognition contract regressed')
 
@@ -521,6 +647,13 @@ try {
   const settingsPageSource = await readFile(new URL('../src/pages/SettingsPage.tsx', import.meta.url), 'utf8')
   const lifeLogPageSource = await readFile(new URL('../src/pages/LifeLogPage.tsx', import.meta.url), 'utf8')
   const weatherSheetSource = await readFile(new URL('../src/features/weather/components/WeatherConnectionSheet.tsx', import.meta.url), 'utf8')
+  const weatherConnectionSource = await readFile(new URL('../src/services/weatherConnectionService.ts', import.meta.url), 'utf8')
+  const weatherDataSource = await readFile(new URL('../src/services/weatherDataService.ts', import.meta.url), 'utf8')
+  const androidLocationBridgeSource = await readFile(new URL('../src/services/androidLocationBridge.ts', import.meta.url), 'utf8')
+  const onboardingPageSource = await readFile(new URL('../src/features/onboarding/OnboardingPage.tsx', import.meta.url), 'utf8')
+  const androidManifestSource = await readFile(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8')
+  const androidLocationPluginSource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/EzkinLocationPlugin.java', import.meta.url), 'utf8')
+  const androidMainActivitySource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/MainActivity.java', import.meta.url), 'utf8')
   const sosPageSource = await readFile(new URL('../src/pages/SOSPage.tsx', import.meta.url), 'utf8')
   const quickCareServiceSource = await readFile(new URL('../src/services/quickCareService.ts', import.meta.url), 'utf8')
   const sosServiceSource = await readFile(new URL('../src/services/sosService.ts', import.meta.url), 'utf8')
@@ -547,6 +680,19 @@ try {
   assert(settingsPageSource.includes("{connected ? '연결됨' : '연결하기'}") && settingsPageSource.includes('inline-flex shrink-0 items-center gap-1 whitespace-nowrap'), 'connection rows do not share one non-wrapping status/action treatment')
   assert(settingsPageSource.includes('onClick={onOpenHealthConnection}') && settingsPageSource.includes('onClick={onOpenWeatherConnection}'), 'Settings connection rows are not both clickable')
   assert(weatherSheetSource.includes('날씨 데이터를 연결할까요?') && weatherSheetSource.includes('연결하지 않아도 다른 기능은 그대로 사용할 수 있어요.'), 'weather consent UI is missing optional-connection guidance')
+  assert(weatherConnectionSource.includes('navigator.geolocation.getCurrentPosition') && /const permissionRequest = requestPermission\(\)[\s\S]{0,120}const currentProfile = await getOnboardingProfile\(userId\)/.test(weatherConnectionSource), 'weather permission is not requested directly from the user action')
+  assert(onboardingPageSource.includes('connectWeatherData(user.id)') && !onboardingPageSource.includes('weatherConnected: !profile.weatherConnected'), 'Onboarding still toggles weather consent without requesting permission')
+  assert(androidManifestSource.includes('android.permission.ACCESS_COARSE_LOCATION') && androidManifestSource.includes('android.permission.ACCESS_FINE_LOCATION'), 'Android location permissions are not declared for WebView geolocation')
+  assert(weatherConnectionSource.includes('usesAndroidNativeLocation()') && weatherConnectionSource.includes('androidLocationBridge.requestCurrentPosition()'), 'Android weather permission does not use the native location bridge')
+  assert(androidMainActivitySource.includes('registerPlugin(EzkinLocationPlugin.class)'), 'Android location bridge is not registered')
+  assert(androidLocationPluginSource.includes('requestPermissionForAliases') && androidLocationPluginSource.includes('LocationManager'), 'Android location bridge does not request runtime permission and resolve a device location')
+  assert(androidLocationPluginSource.includes('positionResult(location)') && androidLocationPluginSource.includes('location.getLatitude()') && androidLocationPluginSource.includes('location.getLongitude()'), 'Android location bridge does not return transient coordinates')
+  assert(!/SharedPreferences|sessionStorage|Log\./.test(androidLocationPluginSource), 'Android location bridge persists or logs coordinates')
+  assert(!/localStorage|sessionStorage|console\./.test(weatherConnectionSource), 'weather consent persists or logs transient coordinates')
+  assert(weatherDataSource.includes('https://api.open-meteo.com/v1/forecast') && /temperature_2m,relative_humidity_2m,uv_index/.test(weatherDataSource) && /timezone: 'auto'/.test(weatherDataSource), 'weather data service does not use the Open-Meteo current contract')
+  assert(androidLocationBridgeSource.includes("registerPlugin<EzkinLocationPlugin>('EzkinLocation')") && weatherDataSource.includes('androidLocationBridge.requestCurrentPosition()') && weatherDataSource.includes("Capacitor.getPlatform() === 'android'"), 'weather data service does not use the single transient native Android bridge')
+  assert(/refreshCurrentWeatherData[\s\S]{0,300}if \(isDemoPersonaUser\(userId\)\) return undefined[\s\S]{0,300}positionRequester/.test(weatherDataSource), 'Demo persona guard does not precede real location access')
+  assert(weatherDataSource.includes('CapacitorWebFetch') && weatherDataSource.includes('WEATHER_REQUEST_TIMEOUT_MS = 3_000') && !weatherDataSource.includes('console.'), 'Android weather request logging or timeout is incorrect')
   assert(quickCareServiceSource.includes("apiRequest<unknown>('/quick-care/safety-check'") && !sosPageSource.includes('fetch('), 'Quick Care does not follow UI → service → api client')
   assert(sosServiceSource.includes('import.meta.env.VITE_USE_QUICK_CARE_API') && !sosServiceSource.includes('VITE_USE_MOCK_API'), 'Quick Care mode selection still depends on the global mock flag')
   assert(careContextServiceSource.includes('import.meta.env.VITE_USE_CARE_CONTEXT_API') && !careContextServiceSource.includes('VITE_USE_MOCK_API'), 'Care Context mode selection depends on the global mock flag')
@@ -577,6 +723,7 @@ try {
   console.log('PASS fast scan countdown, inline/reopen Pattern flow, Environment columns, and Watch contracts')
   console.log('PASS Quick Care live safety gate, mock continuation, stop/continue actions, and retryable failure')
   console.log('PASS Care Context dedicated flag, typed API, Briefing factors, missing data, and non-blocking failure')
+  console.log('PASS normal Open-Meteo mapping, shared Environment inputs, provider failure, coordinate privacy, and Demo isolation')
 } finally {
   await server.close()
 }

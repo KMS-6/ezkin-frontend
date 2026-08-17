@@ -1,5 +1,6 @@
 import { createMockSkinScanResult } from '../mocks/skinScan'
 import type { RecentTriggerAnalysisReference, SkinScanResult } from '../types/skinScan'
+import { getScanTimestamp } from '../utils/appDateTime'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -22,12 +23,12 @@ function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
-export async function analyzeSkin(image: Blob | File): Promise<SkinScanResult> {
+export async function analyzeSkin(image: Blob | File, userId?: string): Promise<SkinScanResult> {
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
 
   if (USE_MOCK_API) {
     await wait(1100)
-    return createMockSkinScanResult()
+    return createMockSkinScanResult(getScanTimestamp(userId))
   }
 
   if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')

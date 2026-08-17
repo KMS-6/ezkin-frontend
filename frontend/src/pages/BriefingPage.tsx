@@ -13,6 +13,7 @@ import { applyCareContextToBriefing, getTodayBriefing } from '../services/briefi
 import { getTodayRoutineForUser } from '../services/productService'
 import type { BriefingData } from '../types/briefing'
 import type { RoutinePeriod, TodayShelfRoutine } from '../types/product'
+import { getCurrentRoutinePeriod } from '../utils/appDateTime'
 
 export function BriefingPage() {
   const { user } = useAuth()
@@ -26,6 +27,7 @@ export function BriefingPage() {
     if (!user) return
     setIsLoading(true)
     setHasError(false)
+    setPeriod(getCurrentRoutinePeriod(user.id))
 
     try {
       const [briefingData, routineData] = await Promise.all([

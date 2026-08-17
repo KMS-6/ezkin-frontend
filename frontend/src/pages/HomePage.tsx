@@ -22,6 +22,7 @@ import type { DietChoice, WaterChoice } from '../types/androidNotification'
 import type { SkinScanResult } from '../types/skinScan'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
 import { DIET_CHOICE_OPTIONS } from '../utils/dietChoice'
+import { getCurrentRoutinePeriod } from '../utils/appDateTime'
 
 const waterChoices: Array<{ label: string; value: WaterChoice }> = [
   { label: '3잔 미만', value: 'under_3' },
@@ -43,6 +44,7 @@ export function HomePage() {
     if (!user) return
     let isActive = true
     setLoadError(false)
+    setPeriod(getCurrentRoutinePeriod(user.id))
 
     try {
       const quickInput = getTodayQuickInput(user.id)

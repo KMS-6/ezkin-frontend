@@ -4,13 +4,16 @@ import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
 import { addMyProducts } from '../../services/productService'
 import { connectHealthData } from '../../services/healthConnectionService'
+import {
+  connectWeatherData,
+  disconnectWeatherData,
+  reconcileWeatherConnectionPermission,
+} from '../../services/weatherConnectionService'
 import { useAuth } from '../auth/authContextValue'
 import {
   completeOnboardingProfile,
-  getOnboardingProfile,
   saveBasicProfile,
   saveConcerns,
-  saveConnectionSettings,
   saveCurrentStep,
   saveSkinType,
 } from '../../services/onboardingService'
@@ -39,12 +42,13 @@ export function OnboardingPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
   const [healthConnectionStatus, setHealthConnectionStatus] = useState<HealthPermissionStatus>('not_requested')
+  const [isUpdatingWeather, setIsUpdatingWeather] = useState(false)
 
   useEffect(() => {
     if (!user) return
     let isActive = true
 
-    void getOnboardingProfile(user.id)
+    void reconcileWeatherConnectionPermission(user.id)
       .then((savedProfile) => {
         if (isActive) {
           setProfile(savedProfile)
@@ -135,14 +139,29 @@ export function OnboardingPage() {
     }
   }
 
-  const handleWeatherToggle = () => {
-    const settings = {
-      lifeDataConnected: profile.lifeDataConnected,
-      weatherConnected: !profile.weatherConnected,
-    }
+  const handleWeatherToggle = async () => {
+    if (isUpdatingWeather) return
+    setIsUpdatingWeather(true)
+    setSaveMessage(null)
 
-    setProfile({ ...profile, ...settings })
-    persist(saveConnectionSettings(user.id, settings))
+    try {
+      if (profile.weatherConnected) {
+        setProfile(await disconnectWeatherData(user.id))
+        return
+      }
+
+      const result = await connectWeatherData(user.id)
+      setProfile(result.profile)
+      if (result.status === 'denied') {
+        setSaveMessage('위치 권한을 허용하지 않아도 괜찮아요. 날씨 데이터 없이 계속할 수 있어요.')
+      } else if (result.status === 'unavailable') {
+        setSaveMessage('지금은 위치를 사용할 수 없어요. 날씨 데이터 없이 계속할 수 있어요.')
+      }
+    } catch {
+      setSaveMessage('날씨 데이터를 연결하지 못했어요. 나중에 다시 시도할 수 있어요.')
+    } finally {
+      setIsUpdatingWeather(false)
+    }
   }
 
   const handleLifeDataConnect = async () => {
@@ -236,10 +255,11 @@ export function OnboardingPage() {
           <ConnectionStep
             lifeDataConnected={profile.lifeDataConnected}
             weatherConnected={profile.weatherConnected}
+            isWeatherConnecting={isUpdatingWeather}
             healthConnectionStatus={healthConnectionStatus}
             isCompleting={isCompleting}
             onConnectLifeData={() => void handleLifeDataConnect()}
-            onToggleWeather={handleWeatherToggle}
+            onToggleWeather={() => void handleWeatherToggle()}
             onComplete={handleComplete}
           />
         )}

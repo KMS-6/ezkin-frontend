@@ -93,7 +93,7 @@ export function AndroidNotificationTestSection({ userId }: AndroidNotificationTe
         <NotificationActionRow
           icon={<Bell size={17} aria-hidden="true" />}
           title={permission === 'granted' ? '알림 권한 허용됨' : '알림 권한 허용'}
-          description={isAvailable ? '테스트할 때만 권한을 요청해요.' : 'Android 앱에서 테스트할 수 있어요.'}
+          description={isAvailable ? undefined : 'Android 앱에서 테스트할 수 있어요.'}
           disabled={!isAvailable || busy !== null || permission === 'granted'}
           busy={busy === 'permission'}
           actionLabel={permission === 'granted' ? '허용됨' : '허용'}
@@ -149,7 +149,7 @@ function NotificationActionRow({
 }: {
   icon: React.ReactNode
   title: string
-  description: string
+  description?: string
   disabled: boolean
   busy: boolean
   actionLabel?: string
@@ -167,7 +167,9 @@ function NotificationActionRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] font-semibold text-ez-text">{title}</span>
-        <span className="mt-0.5 block text-[11px] font-normal text-ez-muted">{description}</span>
+        {description && (
+          <span className="mt-0.5 block text-[11px] font-normal text-ez-muted">{description}</span>
+        )}
       </span>
       <span className="text-[11px] font-semibold text-ez-primary">{busy ? '준비 중' : actionLabel}</span>
     </button>

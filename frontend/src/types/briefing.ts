@@ -4,8 +4,9 @@ import type { CareContextPreviewResponse } from './careContext'
 export type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
 
 export interface WeatherSummary {
-  temperature: number
-  humidity: number
+  temperature?: number
+  humidity?: number
+  uvIndex?: number
 }
 
 export interface BriefingMetric {

@@ -88,8 +88,6 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
   const persona = getMockPersona(userId)
 
   const sleep = briefing.metrics.find((metric) => metric.id === 'sleep')
-  const humidity = briefing.metrics.find((metric) => metric.id === 'humidity')
-  const uv = briefing.metrics.find((metric) => metric.id === 'uv')
 
   const lifestyleEntries = connections.lifeDataConnected
     ? persona?.current_health
@@ -139,27 +137,27 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
 
   const environmentEntries = connections.weatherConnected
     ? [
-        automaticEntry({
+        ...(briefing.weather.temperature !== undefined ? [automaticEntry({
           id: 'temperature',
           type: 'temperature',
           label: '기온',
           value: String(briefing.weather.temperature),
           unit: '°C',
           description: '현재 위치의 오늘 기온',
-        }),
-        ...(humidity ? [automaticEntry({
-          id: humidity.id,
-          type: 'humidity',
-          label: humidity.label,
-          value: humidity.value,
-          description: humidity.description,
         })] : []),
-        ...(uv ? [automaticEntry({
-          id: uv.id,
+        ...(briefing.weather.humidity !== undefined ? [automaticEntry({
+          id: 'humidity',
+          type: 'humidity',
+          label: '습도',
+          value: `${briefing.weather.humidity}%`,
+          description: `현재 위치의 습도 ${briefing.weather.humidity}%`,
+        })] : []),
+        ...(briefing.weather.uvIndex !== undefined ? [automaticEntry({
+          id: 'uv',
           type: 'uv',
-          label: uv.label,
-          value: uv.value,
-          description: uv.description,
+          label: 'UV',
+          value: String(briefing.weather.uvIndex),
+          description: `현재 위치의 UV 지수 ${briefing.weather.uvIndex}`,
         })] : []),
       ]
     : []
@@ -176,7 +174,7 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
     lifestyleEntries: visibleLifestyleEntries,
     environmentEntries,
     manualEntries,
-    healthBaselineStatus: connections.lifeDataConnected
+    healthBaselineStatus: connections.lifeDataConnected && visibleLifestyleEntries.length > 0
       ? persona?.baseline_established ? 'established' : 'building'
       : undefined,
   }
