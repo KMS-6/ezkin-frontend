@@ -1,0 +1,133 @@
+import type { User } from '../types/auth'
+import { isDemoPersonaUser } from '../utils/appDateTime'
+import { ACCESS_TOKEN_STORAGE_KEY, apiRequest } from './apiClient'
+
+const NORMAL_BACKEND_IDENTITY_KEY = 'ezkin:normal-backend-identity'
+const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
+const USE_SHELF_API = import.meta.env.VITE_USE_SHELF_API === 'true'
+
+interface BackendUserResponse {
+  id: string
+  email: string
+  nickname: string
+  created_at: string
+}
+
+interface UserRegistrationResponse {
+  user: BackendUserResponse
+  access_token: string
+  token_type: string
+}
+
+export interface NormalBackendIdentity {
+  frontendUserId: string
+  backendUserId: string
+  accessToken: string
+}
+
+export class BackendIdentityRequiredError extends Error {
+  constructor() {
+    super('일반 사용자 backend 연결을 먼저 준비해 주세요.')
+    this.name = 'BackendIdentityRequiredError'
+  }
+}
+
+export function requiresNormalBackendIdentity(userId: string): boolean {
+  return !isDemoPersonaUser(userId) && (USE_SHELF_API || !USE_MOCK_API)
+}
+
+function readStoredIdentity(): NormalBackendIdentity | null {
+  const saved = localStorage.getItem(NORMAL_BACKEND_IDENTITY_KEY)
+  if (!saved) return null
+
+  try {
+    const identity = JSON.parse(saved) as Partial<NormalBackendIdentity>
+    if (
+      typeof identity.frontendUserId === 'string'
+      && typeof identity.backendUserId === 'string'
+      && typeof identity.accessToken === 'string'
+      && identity.accessToken.length > 0
+    ) {
+      return identity as NormalBackendIdentity
+    }
+  } catch {
+    // Invalid identity data is ignored without touching other user storage.
+  }
+  return null
+}
+
+function migrateActiveRealToken(userId: string): NormalBackendIdentity | null {
+  const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+  if (!token || token.startsWith('mock-token-')) return null
+
+  const identity: NormalBackendIdentity = {
+    frontendUserId: userId,
+    backendUserId: userId,
+    accessToken: token,
+  }
+  localStorage.setItem(NORMAL_BACKEND_IDENTITY_KEY, JSON.stringify(identity))
+  return identity
+}
+
+export function getNormalBackendIdentity(userId: string): NormalBackendIdentity | null {
+  if (isDemoPersonaUser(userId)) return null
+  const identity = readStoredIdentity() ?? migrateActiveRealToken(userId)
+  return identity?.frontendUserId === userId ? identity : null
+}
+
+export function hasNormalBackendIdentity(userId: string): boolean {
+  return Boolean(getNormalBackendIdentity(userId))
+}
+
+export function requireNormalBackendIdentity(userId: string): NormalBackendIdentity {
+  const identity = getNormalBackendIdentity(userId)
+  if (!identity) throw new BackendIdentityRequiredError()
+  return identity
+}
+
+export function clearActiveBackendToken(): void {
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
+}
+
+export function restoreNormalBackendIdentity(userId: string): boolean {
+  const identity = getNormalBackendIdentity(userId)
+  if (!identity) {
+    clearActiveBackendToken()
+    return false
+  }
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, identity.accessToken)
+  return true
+}
+
+export async function ensureNormalBackendIdentity(
+  user: User,
+  nickname: string,
+): Promise<NormalBackendIdentity> {
+  if (isDemoPersonaUser(user.id)) {
+    throw new Error('Demo Persona는 일반 사용자 backend identity를 만들 수 없어요.')
+  }
+
+  const existing = getNormalBackendIdentity(user.id)
+  if (existing) {
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, existing.accessToken)
+    return existing
+  }
+
+  clearActiveBackendToken()
+  const response = await apiRequest<UserRegistrationResponse>('/users', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: user.email,
+      nickname: nickname.trim() || user.nickname?.trim() || 'EZkin 사용자',
+    }),
+  }, { includePersona: false })
+
+  const identity: NormalBackendIdentity = {
+    frontendUserId: user.id,
+    backendUserId: response.user.id,
+    accessToken: response.access_token,
+  }
+  localStorage.setItem(NORMAL_BACKEND_IDENTITY_KEY, JSON.stringify(identity))
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, identity.accessToken)
+  return identity
+}

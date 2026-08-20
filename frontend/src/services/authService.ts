@@ -5,12 +5,12 @@ import type {
   SignupRequest,
   User,
 } from '../types/auth'
+import { ACCESS_TOKEN_STORAGE_KEY } from './apiClient'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 
 const SESSION_KEY = 'ezkin:auth-session'
-const TOKEN_KEY = 'ezkin:access-token'
 const MOCK_USERS_KEY = 'ezkin:mock-users'
 const LEGACY_MOCK_USERS_KEYS = ['ezkin_mock_users', 'ezkin_users']
 
@@ -144,13 +144,13 @@ function writeMockUsers(users: StoredMockUser[]): void {
 
 function saveSession(response: AuthResponse): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(response))
-  if (response.accessToken) localStorage.setItem(TOKEN_KEY, response.accessToken)
-  else localStorage.removeItem(TOKEN_KEY)
+  if (response.accessToken) localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, response.accessToken)
+  else localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
 }
 
 function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -159,7 +159,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   try {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
@@ -262,7 +262,7 @@ export async function logout(): Promise<void> {
 
 export async function getCurrentUser(): Promise<User | null> {
   if (!USE_MOCK_API) {
-    if (!localStorage.getItem(TOKEN_KEY)) return null
+    if (!localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return null
     try {
       return await request<User>('/users/me')
     } catch (error) {
@@ -296,7 +296,6 @@ export async function getEntryUser(): Promise<User | null> {
     user: {
       ...localAppAccount.user,
     },
-    accessToken: `mock-token-${localAppAccount.user.id}`,
   }
 
   saveSession(response)
@@ -310,7 +309,6 @@ export async function activateLocalUser(user: User): Promise<User> {
 
   saveSession({
     user,
-    accessToken: `mock-token-${user.id}`,
   })
   return user
 }
@@ -323,7 +321,7 @@ export async function completeOnboarding(): Promise<User> {
       method: 'PATCH',
       body: JSON.stringify({ onboardingCompleted: true }),
     })
-    const accessToken = localStorage.getItem(TOKEN_KEY) ?? undefined
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
     saveSession({ user, accessToken })
     return user
   }
@@ -342,6 +340,7 @@ export async function completeOnboarding(): Promise<User> {
     writeMockUsers(users)
   }
 
-  saveSession({ ...session, user })
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
+  saveSession({ user, accessToken })
   return user
 }

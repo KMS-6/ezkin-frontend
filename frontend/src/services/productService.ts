@@ -1,6 +1,7 @@
 import { productCatalog } from '../mocks/products'
 import { todayProductRecommendations } from '../mocks/productRecommendations'
 import { getMockPersona } from '../mocks/personas'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 import type {
   Product,
   ProductWithRecommendation,
@@ -10,6 +11,7 @@ import type {
 } from '../types/product'
 import { getOnboardingProfile, saveProducts } from './onboardingService'
 import { apiRequest } from './apiClient'
+import { hasNormalBackendIdentity } from './backendIdentityService'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_SHELF_API = import.meta.env.VITE_USE_SHELF_API === 'true'
@@ -22,18 +24,10 @@ interface BackendShelfProduct {
   ingredients_raw: string[] | null
 }
 
-interface BackendPersonaCosmetic {
-  cosmetic_id: string
-  brand: string
-  product_name: string
-  product_type: string | null
-  ingredients_raw: string[] | null
-}
-
 const liveProductsById = new Map<string, Product>()
 
-function isPersonaUser(userId: string): boolean {
-  return userId.startsWith('persona_')
+function shouldUseLiveShelf(userId: string): boolean {
+  return !isDemoPersonaUser(userId) && (USE_SHELF_API || !USE_MOCK_API)
 }
 
 function normalizeCategory(value: string): Product['category'] {
@@ -56,16 +50,6 @@ function backendProductToProduct(product: BackendShelfProduct): Product {
     ingredients: product.ingredients_raw ?? [],
     usage: '제품 표시사항에 따라 사용해주세요.',
   }
-}
-
-function personaCosmeticToProduct(product: BackendPersonaCosmetic): Product {
-  return backendProductToProduct({
-    id: product.cosmetic_id,
-    brand: product.brand,
-    product_name: product.product_name,
-    product_type: product.product_type ?? 'moisturizer',
-    ingredients_raw: product.ingredients_raw,
-  })
 }
 
 function rememberLiveProducts(products: Product[]): Product[] {
@@ -99,11 +83,8 @@ export async function getProductCatalog(): Promise<Product[]> {
 }
 
 export async function getMyProducts(userId: string): Promise<Product[]> {
-  if ((USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API) {
-    if (isPersonaUser(userId)) {
-      const response = await apiRequest<{ items: BackendPersonaCosmetic[] }>('/cosmetics')
-      return rememberLiveProducts(response.items.map(personaCosmeticToProduct))
-    }
+  if (shouldUseLiveShelf(userId)) {
+    if (!hasNormalBackendIdentity(userId)) return []
     const response = await apiRequest<{ items: BackendShelfProduct[] }>('/shelf/products')
     return rememberLiveProducts(response.items.map(backendProductToProduct))
   }
@@ -114,17 +95,15 @@ export async function getMyProducts(userId: string): Promise<Product[]> {
 }
 
 export async function addMyProducts(userId: string, productIds: string[]): Promise<Product[]> {
-  if ((USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API) {
+  if (shouldUseLiveShelf(userId)) {
+    if (!hasNormalBackendIdentity(userId)) {
+      const profile = await getOnboardingProfile(userId)
+      const registeredProductIds = [...new Set([...profile.registeredProductIds, ...productIds])]
+      await saveProducts(userId, registeredProductIds)
+      return productCatalog.filter((product) => registeredProductIds.includes(product.id))
+    }
     const selected = productCatalog.filter((product) => productIds.includes(product.id))
     await Promise.all(selected.map((product) => {
-      if (isPersonaUser(userId)) {
-        const body = new FormData()
-        body.append('brand', product.brand)
-        body.append('product_name', product.name)
-        body.append('product_type', product.category === 'cream' ? 'moisturizer' : product.category)
-        body.append('ingredients_raw', JSON.stringify(product.ingredients))
-        return apiRequest('/cosmetics', { method: 'POST', body })
-      }
       return apiRequest('/shelf/products', {
         method: 'POST',
         body: JSON.stringify(productToBackendCreate(product)),
@@ -139,10 +118,27 @@ export async function addMyProducts(userId: string, productIds: string[]): Promi
   return productCatalog.filter((product) => registeredProductIds.includes(product.id))
 }
 
+export async function syncPendingMyProducts(userId: string, productIds: string[]): Promise<Product[]> {
+  if (!shouldUseLiveShelf(userId) || !hasNormalBackendIdentity(userId) || productIds.length === 0) {
+    return getMyProducts(userId)
+  }
+
+  const existing = await getMyProducts(userId)
+  const existingKeys = new Set(existing.map((product) => `${product.brand}\u0000${product.name}`))
+  const missingIds = productCatalog
+    .filter((product) => productIds.includes(product.id))
+    .filter((product) => !existingKeys.has(`${product.brand}\u0000${product.name}`))
+    .map((product) => product.id)
+  if (missingIds.length === 0) return existing
+  return addMyProducts(userId, missingIds)
+}
+
 export async function getProductDetail(productId: string): Promise<Product | null> {
   const cached = liveProductsById.get(productId)
   if (cached) return cached
-  if (!USE_MOCK_API) {
+  const catalogProduct = productCatalog.find((product) => product.id === productId)
+  if (catalogProduct) return catalogProduct
+  if (USE_SHELF_API || !USE_MOCK_API) {
     try {
       return backendProductToProduct(await apiRequest<BackendShelfProduct>(`/shelf/products/${productId}`))
     } catch {
@@ -150,7 +146,7 @@ export async function getProductDetail(productId: string): Promise<Product | nul
     }
   }
 
-  return Promise.resolve(productCatalog.find((product) => product.id === productId) ?? null)
+  return null
 }
 
 export async function getTodayProductRecommendations(
@@ -158,37 +154,9 @@ export async function getTodayProductRecommendations(
 ): Promise<ProductWithRecommendation[]> {
   const products = await getMyProducts(userId)
   const persona = getMockPersona(userId)
-  const usesLiveShelf = (USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API
+  const usesLiveShelf = shouldUseLiveShelf(userId)
   let recommendations: TodayProductRecommendation[]
-  if (usesLiveShelf && isPersonaUser(userId)) {
-    const briefing = await apiRequest<{
-      status: 'ready' | 'pending'
-      routine?: Array<{ order: number; cosmetic_id: string; note: string | null }>
-      skip?: Array<{ cosmetic_id: string; reason: string }>
-    }>('/briefings/today')
-    const routine = briefing.routine ?? []
-    const skipped = briefing.skip ?? []
-    recommendations = products.map((product) => {
-      const step = routine.find((item) => item.cosmetic_id === product.id)
-      const pause = skipped.find((item) => item.cosmetic_id === product.id)
-      if (step) return {
-        productId: product.id,
-        status: 'recommended',
-        summary: step.note ?? '오늘 루틴에 포함된 제품이에요.',
-        reason: '오늘 브리핑에 포함된 제품이에요.',
-        recommendedTime: 'BOTH',
-        routineStep: step.order,
-      }
-      if (pause) return {
-        productId: product.id,
-        status: 'pause',
-        summary: '오늘은 쉬어가요.',
-        reason: pause.reason,
-        recommendedTime: 'BOTH',
-      }
-      return getMockRecommendation(product.id)
-    })
-  } else if (usesLiveShelf) {
+  if (usesLiveShelf) {
     recommendations = products.map((product) => getMockRecommendation(product.id))
   } else {
     recommendations = persona?.product_recommendations ?? todayProductRecommendations

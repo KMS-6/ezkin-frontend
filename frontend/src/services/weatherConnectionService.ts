@@ -1,6 +1,5 @@
 import { Capacitor } from '@capacitor/core'
 import type { OnboardingProfile } from '../types/onboarding'
-import { isDemoPersonaUser } from '../utils/appDateTime'
 import { androidLocationBridge } from './androidLocationBridge'
 import { getOnboardingProfile, saveConnectionSettings } from './onboardingService'
 import {
@@ -115,17 +114,6 @@ export async function connectWeatherData(
   userId: string,
   requestPermission: WeatherPermissionRequester = requestWeatherLocationPermission,
 ): Promise<WeatherConnectionResult> {
-  if (isDemoPersonaUser(userId)) {
-    const currentProfile = await getOnboardingProfile(userId)
-    const profile = currentProfile.weatherConnected
-      ? currentProfile
-      : await saveConnectionSettings(userId, {
-          lifeDataConnected: currentProfile.lifeDataConnected,
-          weatherConnected: true,
-        })
-    return { status: 'granted', profile }
-  }
-
   // Start geolocation before the first await so the browser retains the click activation.
   const permissionRequest = requestPermission()
   const currentProfile = await getOnboardingProfile(userId)
@@ -156,7 +144,7 @@ export async function reconcileWeatherConnectionPermission(
   checkPermission: WeatherPermissionChecker = getWeatherLocationPermissionState,
 ): Promise<OnboardingProfile> {
   const currentProfile = await getOnboardingProfile(userId)
-  if (isDemoPersonaUser(userId) || !currentProfile.weatherConnected) return currentProfile
+  if (!currentProfile.weatherConnected) return currentProfile
 
   const status = await checkPermission()
   if (status === 'granted') return currentProfile

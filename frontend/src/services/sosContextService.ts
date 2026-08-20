@@ -3,11 +3,12 @@ import { getTodayBriefing } from './briefingService'
 import { getTodayLifeLog } from './lifeLogService'
 import { getOnboardingProfile } from './onboardingService'
 import { getTodayProductRecommendations } from './productService'
+import { isBriefingAvailableForUser } from './userFeatureAvailability'
 
 export async function getSOSContext(userId: string): Promise<SOSContext> {
   const [profile, briefing, lifeLog, productRecommendations] = await Promise.all([
     getOnboardingProfile(userId),
-    getTodayBriefing(userId),
+    isBriefingAvailableForUser(userId) ? getTodayBriefing(userId) : Promise.resolve(null),
     getTodayLifeLog(userId),
     getTodayProductRecommendations(userId),
   ])
@@ -29,11 +30,11 @@ export async function getSOSContext(userId: string): Promise<SOSContext> {
       healthConcerns: profile.healthConcerns,
     },
     today: {
-      skinStatus: `${briefing.skinHeadline} · ${briefing.riskLabel}`,
+      ...(briefing ? { skinStatus: `${briefing.skinHeadline} · ${briefing.riskLabel}` } : {}),
       sleep: sleep?.value,
       humidity: humidity?.value,
       uv: uv?.value,
-      temperature: temperature ? Number(temperature.value) : briefing.weather.temperature,
+      temperature: temperature ? Number(temperature.value) : briefing?.weather.temperature,
       foodChoice: diet?.value,
     },
     products: productRecommendations.map(({ product, recommendation }) => ({

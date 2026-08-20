@@ -23,6 +23,12 @@ import type { SkinScanResult } from '../types/skinScan'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
 import { DIET_CHOICE_OPTIONS } from '../utils/dietChoice'
 import { getCurrentRoutinePeriod } from '../utils/appDateTime'
+import {
+  getCurrentWeatherData,
+  type CurrentEnvironmentData,
+} from '../services/weatherDataService'
+import { isBriefingAvailableForUser } from '../services/userFeatureAvailability'
+import { getOnboardingProfile } from '../services/onboardingService'
 
 const waterChoices: Array<{ label: string; value: WaterChoice }> = [
   { label: '3잔 미만', value: 'under_3' },
@@ -33,6 +39,7 @@ const waterChoices: Array<{ label: string; value: WaterChoice }> = [
 export function HomePage() {
   const { user } = useAuth()
   const [briefing, setBriefing] = useState<BriefingData | null>(null)
+  const [environment, setEnvironment] = useState<CurrentEnvironmentData | null>(null)
   const [todayRoutine, setTodayRoutine] = useState<TodayShelfRoutine | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [period, setPeriod] = useState<RoutinePeriod>('am')
@@ -44,6 +51,8 @@ export function HomePage() {
     if (!user) return
     let isActive = true
     setLoadError(false)
+    setBriefing(null)
+    setEnvironment(null)
     setPeriod(getCurrentRoutinePeriod(user.id))
 
     try {
@@ -56,19 +65,32 @@ export function HomePage() {
       setDietChoice(null)
     }
 
-    void Promise.all([
-      getTodayBriefing(user.id),
-      getTodayRoutineForUser(user.id),
-    ]).then(([briefingData, routineData]) => {
-      if (!isActive) return
-      setBriefing(briefingData)
-      setTodayRoutine(routineData)
-      void applyCareContextToBriefing(briefingData).then((careContextBriefing) => {
-        if (isActive) setBriefing(careContextBriefing)
+    if (isBriefingAvailableForUser(user.id)) {
+      void Promise.all([
+        getTodayBriefing(user.id),
+        getTodayRoutineForUser(user.id),
+      ]).then(([briefingData, routineData]) => {
+        if (!isActive) return
+        setBriefing(briefingData)
+        setTodayRoutine(routineData)
+        void applyCareContextToBriefing(briefingData).then((careContextBriefing) => {
+          if (isActive) setBriefing(careContextBriefing)
+        })
+      }).catch(() => {
+        if (isActive) setLoadError(true)
       })
-    }).catch(() => {
-      if (isActive) setLoadError(true)
-    })
+    } else {
+      void Promise.all([
+        getTodayRoutineForUser(user.id),
+        getConnectedEnvironment(user.id),
+      ]).then(([routineData, environmentData]) => {
+        if (!isActive) return
+        setTodayRoutine(routineData)
+        setEnvironment(environmentData ?? null)
+      }).catch(() => {
+        if (isActive) setLoadError(true)
+      })
+    }
 
     return () => {
       isActive = false
@@ -102,7 +124,7 @@ export function HomePage() {
 
   if (!user) return null
   if (loadError) return <HomeLoadError />
-  if (!briefing || !todayRoutine) return <HomeSkeleton />
+  if (!todayRoutine || (isBriefingAvailableForUser(user.id) && !briefing)) return <HomeSkeleton />
 
   const routine = todayRoutine[period]
   const isShelfEmpty = todayRoutine.shelfProductCount === 0
@@ -134,7 +156,7 @@ export function HomePage() {
       />
 
       <PageContainer className="pt-2">
-        <HeroCard className="p-5">
+        {briefing ? <HeroCard className="p-5">
           <div
             className="pointer-events-none absolute -right-16 -top-16 size-44 rounded-full bg-white/45"
             aria-hidden="true"
@@ -161,7 +183,7 @@ export function HomePage() {
               </Link>
             </div>
           </div>
-        </HeroCard>
+        </HeroCard> : <HomeBriefingUnavailable environment={environment} />}
 
         <section className="mt-5">
           <div className="mb-2.5 flex items-center justify-between gap-3">
@@ -260,6 +282,41 @@ export function HomePage() {
         </section>
       </PageContainer>
     </>
+  )
+}
+
+async function getConnectedEnvironment(userId: string): Promise<CurrentEnvironmentData | undefined> {
+  const profile = await getOnboardingProfile(userId)
+  return profile.weatherConnected ? getCurrentWeatherData(userId) : undefined
+}
+
+function HomeBriefingUnavailable({ environment }: { environment: CurrentEnvironmentData | null }) {
+  const environmentValues = [
+    environment?.temperatureC !== undefined ? `기온 ${environment.temperatureC}°C` : null,
+    environment?.humidityPercent !== undefined ? `습도 ${environment.humidityPercent}%` : null,
+    environment?.uvIndex !== undefined ? `UV ${environment.uvIndex}` : null,
+  ].filter((value): value is string => Boolean(value))
+
+  return (
+    <HeroCard className="p-5">
+      <div className="relative">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ez-primary">Today</p>
+        <h1 className="mt-2 text-[22px] font-bold leading-[1.3] tracking-[-0.03em] text-ez-text">
+          오늘 케어 안내를 준비 중이에요.
+        </h1>
+        <p className="mt-3 text-[13px] leading-[1.65] text-ez-secondary">
+          날씨와 내 화장대 정보는 계속 확인할 수 있어요.
+        </p>
+        {environmentValues.length > 0 && (
+          <div className="mt-4 border-t border-white/80 pt-3">
+            <p className="text-[10px] font-semibold text-ez-primary">현재 환경</p>
+            <p className="mt-1.5 text-[11px] font-medium text-ez-secondary">
+              {environmentValues.join(' · ')}
+            </p>
+          </div>
+        )}
+      </div>
+    </HeroCard>
   )
 }
 

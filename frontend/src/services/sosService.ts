@@ -198,7 +198,7 @@ export async function sendSOSMessage(
 ): Promise<SendSOSMessageResponse> {
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
-  const useLiveSos = USE_SOS_API && isDemoPersonaUser(request.context.userId)
+  const useLiveSos = USE_SOS_API && !isDemoPersonaUser(request.context.userId)
 
   if (!USE_QUICK_CARE_API && !useLiveSos) {
     await wait(850)

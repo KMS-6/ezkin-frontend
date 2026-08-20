@@ -8,6 +8,7 @@ import { isCareContextApiEnabled, previewCareContext } from './careContextServic
 import { getCurrentGreeting, getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData, type CurrentEnvironmentData } from './weatherDataService'
 import { apiRequest } from './apiClient'
+import { requireFeatureAvailable } from './userFeatureAvailability'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_BRIEFING_API = import.meta.env.VITE_USE_BRIEFING_API === 'true'
@@ -125,7 +126,7 @@ async function applyCurrentEnvironment(
   briefing: BriefingData,
   userId?: string,
 ): Promise<BriefingData> {
-  if (!userId || isDemoPersonaUser(userId)) return briefing
+  if (!userId) return briefing
 
   const profile = await getOnboardingProfile(userId)
   const healthMetrics = briefing.metrics.filter((metric) => metric.source === 'health')
@@ -244,7 +245,8 @@ export async function applyCareContextToBriefing(
 }
 
 async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
-  const useLiveBriefing = !USE_MOCK_API || (USE_BRIEFING_API && isDemoPersonaUser(userId))
+  requireFeatureAvailable('briefing', userId)
+  const useLiveBriefing = !isDemoPersonaUser(userId) && (USE_BRIEFING_API || !USE_MOCK_API)
   if (!useLiveBriefing) {
     const profile = userId ? await getOnboardingProfile(userId) : null
     const persona = userId ? getMockPersona(userId) : null
@@ -267,16 +269,6 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
             }] : []),
           ]
         : []
-      const environmentMetrics: BriefingData['metrics'] = profile.weatherConnected ? [
-        {
-          id: 'humidity', label: '습도', value: `${persona.weather.humidity_percent}%`, icon: 'humidity',
-          source: 'environment', description: `현재 습도 ${persona.weather.humidity_percent}%예요.`,
-        },
-        {
-          id: 'uv', label: 'UV', value: String(persona.weather.uv_index), icon: 'uv',
-          source: 'environment', description: `현재 UV 지수 ${persona.weather.uv_index}예요.`,
-        },
-      ] : []
       const riskLabels = {
         moderate: '피부 변화 관찰',
         high: '자극 가능성 높음',
@@ -286,21 +278,16 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
       return {
         greeting: '좋은 아침이에요',
         dateLabel: '8월 15일',
-        weather: {
-          temperature: persona.weather.temperature_c,
-          humidity: persona.weather.humidity_percent,
-          uvIndex: persona.weather.uv_index,
-        },
+        weather: {},
         skinHeadline: persona.briefing.headline,
         riskLabel: riskLabels[persona.briefing.risk_level],
         summary: persona.briefing.summary,
         careTip: '오늘 가진 제품으로 필요한 단계만 챙겨요.',
-        metrics: [...healthMetrics, ...environmentMetrics],
+        metrics: healthMetrics,
         syncedSources: [
           ...(healthMetrics.length ? ['수면', 'HRV'] : []),
-          ...(environmentMetrics.length ? ['날씨', 'UV'] : []),
         ],
-        syncedCount: healthMetrics.length + environmentMetrics.length,
+        syncedCount: healthMetrics.length,
         ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
       }
     }

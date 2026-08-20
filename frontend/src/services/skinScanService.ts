@@ -2,6 +2,7 @@ import { createMockSkinScanResult } from '../mocks/skinScan'
 import type { RecentTriggerAnalysisReference, SkinScanResult } from '../types/skinScan'
 import { getScanTimestamp, isDemoPersonaUser } from '../utils/appDateTime'
 import { apiRequest } from './apiClient'
+import { requireFeatureAvailable } from './userFeatureAvailability'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_SKIN_SCAN_API = import.meta.env.VITE_USE_SKIN_SCAN_API === 'true'
@@ -44,8 +45,9 @@ async function waitForSkinScan(scanId: string): Promise<SkinScanApiResult> {
 
 export async function analyzeSkin(image: Blob | File, userId?: string): Promise<SkinScanResult> {
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
+  requireFeatureAvailable('skinScan', userId)
 
-  const useLiveSkinScan = !USE_MOCK_API || (USE_SKIN_SCAN_API && isDemoPersonaUser(userId))
+  const useLiveSkinScan = !isDemoPersonaUser(userId) && (USE_SKIN_SCAN_API || !USE_MOCK_API)
   if (!useLiveSkinScan) {
     await wait(1100)
     return createMockSkinScanResult(getScanTimestamp(userId))
