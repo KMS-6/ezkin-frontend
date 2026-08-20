@@ -140,6 +140,20 @@ try {
   assert(!userFeatures.isAnalysisAvailableForUser(freshNormalUser.id), 'normal user exposed Persona-only Analysis')
   assert(quickInput.getTodayQuickInput(freshNormalUser.id) === null, 'Persona quick input leaked into the fresh normal user')
   assert(scenario.getStoredExperienceMode() === 'normal' && scenario.getStoredDemoScenario() === null, 'normal selection did not deactivate the Demo mode')
+  let forcedSubmissionBackendCalls = 0
+  const forcedSubmissionFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => {
+      forcedSubmissionBackendCalls += 1
+      throw new Error('submission entry must not call the EZkin backend')
+    }
+    const forcedSubmissionUser = await scenario.resolveDemoScenarioEntryUser(freshNormalUser)
+    assert(forcedSubmissionUser.id === scenario.DEMO_LONG_TERM_USER_ID && forcedSubmissionUser.onboardingCompleted, 'stored normal mode was not forced back to the long-term Demo')
+  } finally {
+    globalThis.fetch = forcedSubmissionFetch
+  }
+  assert(forcedSubmissionBackendCalls === 0 && storage.getItem('ezkin:demo-scenario') === 'long_term', 'forced submission entry called the backend or did not persist long-term mode')
+  await scenario.activateNormalMode()
   let staleModeCompletionCalls = 0
   let staleModeCompletionTarget = null
   const staleModeFetch = globalThis.fetch
@@ -259,7 +273,7 @@ try {
   await auth.completeOnboarding()
   await quickInput.saveDietChoice(freshNormalUser.id, 'normal')
   const completedNormalUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
-  assert(completedNormalUser.id === freshNormalUser.id && completedNormalUser.onboardingCompleted, 'completed normal onboarding was not restored')
+  assert(completedNormalUser.id === scenario.DEMO_LONG_TERM_USER_ID && completedNormalUser.onboardingCompleted, 'submission entry exposed the completed normal user instead of the long-term Demo')
 
   const longTermUser = await scenario.activateDemoScenario('long_term')
   let demoWeatherPositionRequests = 0
@@ -893,6 +907,7 @@ try {
   const skinScanServiceSource = await readFile(new URL('../src/services/skinScanService.ts', import.meta.url), 'utf8')
   const homePageSource = await readFile(new URL('../src/pages/HomePage.tsx', import.meta.url), 'utf8')
   const authServiceSource = await readFile(new URL('../src/services/authService.ts', import.meta.url), 'utf8')
+  const appSource = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
   const briefingPageSource = await readFile(new URL('../src/pages/BriefingPage.tsx', import.meta.url), 'utf8')
   const triggerPageSource = await readFile(new URL('../src/pages/TriggerAnalysisPage.tsx', import.meta.url), 'utf8')
   const featureAvailabilitySource = await readFile(new URL('../src/services/userFeatureAvailability.ts', import.meta.url), 'utf8')
@@ -906,7 +921,8 @@ try {
   assert(homePageSource.includes('to="/settings"') && !homePageSource.includes('if (loadError)') && !homePageSource.includes('return <HomeLoadError'), 'Home API failure can still replace the AppHeader and Settings entry path')
   assert(homePageSource.includes('setBriefingError(true)') && homePageSource.includes('setRoutineError(true)') && homePageSource.includes('<HomeRoutineUnavailable />'), 'Home Briefing and Shelf failures are not isolated to their sections')
   assert(!/Promise\.all\(\[\s*getTodayBriefing\(user\.id\),\s*getTodayRoutineForUser\(user\.id\)/.test(homePageSource), 'Home still couples Briefing and Shelf failure in one request boundary')
-  assert(settingsPageSource.indexOf('<DemoScenarioSwitch />') > settingsPageSource.indexOf("hasError || !profile"), 'Settings mode switch still depends on successful profile/backend data rendering')
+  assert(!settingsPageSource.includes('DemoScenarioSwitch'), 'Settings still exposes the normal-user mode selector in the submission build')
+  assert(appSource.includes('path="onboarding" element={<Navigate to="/home" replace />}') && !appSource.includes('OnboardingPage'), 'submission build still exposes the onboarding screen')
   assert(onboardingPageSource.includes('resolveOnboardingCompletionTarget(user)') && onboardingPageSource.indexOf("completionTarget.mode === 'long_term'") < onboardingPageSource.indexOf('requiresNormalBackendIdentity(user.id)') && authServiceSource.includes('activeUser && isDemoPersonaUser(activeUser.id)'), 'active long-term mode is not resolved before normal backend onboarding work')
   assert(briefingPageSource.includes('isBriefingAvailableForUser') && briefingPageSource.includes('오늘 케어 안내를 준비 중이에요.'), 'normal Briefing does not render the unavailable state')
   assert(scanPageSource.includes('isSkinScanAvailableForUser') && scanPageSource.includes('현재 분석 기능을 준비 중이에요.'), 'normal Scan does not render the unavailable state')
@@ -917,7 +933,7 @@ try {
   assert(analysisTypeSource.includes('sample_size: number') && analysisTypeSource.includes('match_count: number'), 'API Pattern occurrence counts are not required')
   assert(analysisTypeSource.includes("Partial<Pick<ObservedPattern, 'sample_size' | 'match_count'>>"), 'demo Pattern presentation cannot omit unavailable occurrence counts')
   assert(!/targetSkinEvent|nextAction|ReportTimelinePoint|skinSummary/.test(analysisTypeSource), 'deprecated Analysis API fields remain required')
-  assert(demoSwitchSource.includes('체험 모드') && demoSwitchSource.includes('일반 사용자') && demoScenarioServiceSource.includes('장기 사용자 데모') && !demoSwitchSource.includes('Demo Scenario'), 'Settings does not expose the two product-facing modes')
+  assert(demoSwitchSource.includes('체험 모드') && demoScenarioServiceSource.includes('SUBMISSION_DEMO_SCENARIO') && !settingsPageSource.includes('DemoScenarioSwitch'), 'submission mode did not retain the switch code while removing its user-facing entry')
   assert(scenario.isDemoScenarioEnabled('true') === true, 'demo flag true hid notification test controls')
   assert(scenario.isDemoScenarioEnabled('false') === false, 'demo flag false exposed notification test controls')
   assert(notificationSectionSource.includes('const showTestControls = isDemoScenarioEnabled()') && notificationSectionSource.includes('showTestControls &&') && notificationSectionSource.includes('>알림</h2>') && !notificationSectionSource.includes('알림 테스트'), 'notification test controls are not conditionally removed')
@@ -961,6 +977,7 @@ try {
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/onboarding', canGoBack: false }) === 'stay', 'onboarding first step did not stay in the app')
 
   console.log('PASS fresh install defaults to backend-free long-term Demo Home')
+  console.log('PASS submission entry forces stored normal mode to backend-free long-term Demo')
   console.log('PASS normal selection starts/restores onboarding and identity independently')
   console.log('PASS long-term prepared Health, Shelf, Report, Pattern, lifestyle, and SOS data')
   console.log('PASS normal/long-term isolation and mode persistence')
