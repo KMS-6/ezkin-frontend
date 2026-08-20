@@ -901,7 +901,7 @@ try {
   const androidManifestSource = await readFile(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8')
   const androidLocationPluginSource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/EzkinLocationPlugin.java', import.meta.url), 'utf8')
   const androidMainActivitySource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/MainActivity.java', import.meta.url), 'utf8')
-  const sosPageSource = await readFile(new URL('../src/pages/SOSPage.tsx', import.meta.url), 'utf8')
+  const sosPageSource = await readFile(new URL('../src/pages/SosPage.tsx', import.meta.url), 'utf8')
   const quickCareServiceSource = await readFile(new URL('../src/services/quickCareService.ts', import.meta.url), 'utf8')
   const sosServiceSource = await readFile(new URL('../src/services/sosService.ts', import.meta.url), 'utf8')
   const careContextServiceSource = await readFile(new URL('../src/services/careContextService.ts', import.meta.url), 'utf8')
