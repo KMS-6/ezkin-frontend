@@ -19,6 +19,7 @@ import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
 import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
 import { AndroidNotificationTestSection } from '../features/notifications/AndroidNotificationTestSection'
+import { DemoScenarioSwitch } from '../features/demo/DemoScenarioSwitch'
 import { WeatherConnectionSheet } from '../features/weather/components/WeatherConnectionSheet'
 import { concernOptions } from '../mocks/onboarding'
 import {
@@ -195,6 +196,8 @@ export function SettingsPage() {
         </div>
 
         <AndroidNotificationTestSection userId={user.id} />
+
+        {import.meta.env.VITE_ENABLE_DEMO_SCENARIO === 'true' && <DemoScenarioSwitch />}
 
       </PageContainer>
 

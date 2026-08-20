@@ -57,7 +57,7 @@ export function DemoScenarioSwitch() {
             {switchingScenario === 'normal' ? '전환 중' : '일반 사용자'}
           </span>
           <span className="mt-1 block text-[11px] font-normal leading-5 text-ez-muted">
-            실제 데이터를 기반으로 EZkin을 사용합니다.
+            내가 입력한 피부·생활 기록을 기기에 저장해 사용합니다.
           </span>
         </button>
         <button

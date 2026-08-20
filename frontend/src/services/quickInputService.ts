@@ -159,7 +159,11 @@ export async function saveDailyQuickInput(
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
   if (isManualMetricsApiEnabled() && !isDemoPersonaUser(userId)) {
-    await syncDailyQuickInput(next, backendQuickInputTransport)
+    try {
+      await syncDailyQuickInput(next, backendQuickInputTransport)
+    } catch {
+      // 사용자 입력은 기기에 보존하고, Backend 동기화는 연결 가능할 때 다시 시도합니다.
+    }
   }
   emitQuickInputSync(next)
   return next

@@ -15,6 +15,7 @@ import { SplashPage } from './pages/SplashPage'
 import { QuickInputPage } from './pages/QuickInputPage'
 import { AndroidNotificationCoordinator } from './features/notifications/AndroidNotificationCoordinator'
 import { AndroidBackButtonCoordinator } from './features/navigation/AndroidBackButtonCoordinator'
+import { OnboardingPage } from './features/onboarding/OnboardingPage'
 
 function App() {
   return (
@@ -27,7 +28,9 @@ function App() {
           <Route path="login" element={<Navigate to="/" replace />} />
           <Route path="signup" element={<Navigate to="/" replace />} />
 
-          <Route path="onboarding" element={<Navigate to="/home" replace />} />
+          <Route element={<ProtectedRoute onboarding="incomplete" />}>
+            <Route path="onboarding" element={<OnboardingPage />} />
+          </Route>
 
           <Route element={<ProtectedRoute />}>
             <Route path="home" element={<HomePage />} />

@@ -83,39 +83,39 @@ export async function getProductCatalog(): Promise<Product[]> {
 }
 
 export async function getMyProducts(userId: string): Promise<Product[]> {
-  if (shouldUseLiveShelf(userId)) {
-    if (!hasNormalBackendIdentity(userId)) return []
-    const response = await apiRequest<{ items: BackendShelfProduct[] }>('/shelf/products')
-    return rememberLiveProducts(response.items.map(backendProductToProduct))
-  }
-
   const profile = await getOnboardingProfile(userId)
-  const registeredIds = new Set(profile.registeredProductIds)
-  return productCatalog.filter((product) => registeredIds.has(product.id))
+  const localProducts = productCatalog.filter((product) => profile.registeredProductIds.includes(product.id))
+  if (shouldUseLiveShelf(userId)) {
+    if (!hasNormalBackendIdentity(userId)) return localProducts
+    try {
+      const response = await apiRequest<{ items: BackendShelfProduct[] }>('/shelf/products')
+      return rememberLiveProducts(response.items.map(backendProductToProduct))
+    } catch {
+      return localProducts
+    }
+  }
+  return localProducts
 }
 
 export async function addMyProducts(userId: string, productIds: string[]): Promise<Product[]> {
-  if (shouldUseLiveShelf(userId)) {
-    if (!hasNormalBackendIdentity(userId)) {
-      const profile = await getOnboardingProfile(userId)
-      const registeredProductIds = [...new Set([...profile.registeredProductIds, ...productIds])]
-      await saveProducts(userId, registeredProductIds)
-      return productCatalog.filter((product) => registeredProductIds.includes(product.id))
-    }
-    const selected = productCatalog.filter((product) => productIds.includes(product.id))
-    await Promise.all(selected.map((product) => {
-      return apiRequest('/shelf/products', {
-        method: 'POST',
-        body: JSON.stringify(productToBackendCreate(product)),
-      })
-    }))
-    return getMyProducts(userId)
-  }
-
   const profile = await getOnboardingProfile(userId)
   const registeredProductIds = [...new Set([...profile.registeredProductIds, ...productIds])]
   await saveProducts(userId, registeredProductIds)
-  return productCatalog.filter((product) => registeredProductIds.includes(product.id))
+  const localProducts = productCatalog.filter((product) => registeredProductIds.includes(product.id))
+  if (shouldUseLiveShelf(userId)) {
+    if (!hasNormalBackendIdentity(userId)) return localProducts
+    const selected = productCatalog.filter((product) => productIds.includes(product.id))
+    try {
+      await Promise.all(selected.map((product) => apiRequest('/shelf/products', {
+          method: 'POST',
+          body: JSON.stringify(productToBackendCreate(product)),
+        })))
+      return getMyProducts(userId)
+    } catch {
+      return localProducts
+    }
+  }
+  return localProducts
 }
 
 export async function syncPendingMyProducts(userId: string, productIds: string[]): Promise<Product[]> {

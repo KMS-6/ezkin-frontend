@@ -5,8 +5,6 @@ import type { OnboardingProfile } from '../types/onboarding'
 import { activateLocalUser, getCurrentUser } from './authService'
 import {
   clearActiveBackendToken,
-  hasNormalBackendIdentity,
-  requiresNormalBackendIdentity,
   restoreNormalBackendIdentity,
 } from './backendIdentityService'
 import {
@@ -63,7 +61,7 @@ export function getStoredExperienceMode(): ExperienceMode {
   }
   if (saved === 'normal') return 'normal'
 
-  const initialMode: ExperienceMode = isDemoScenarioEnabled() ? 'long_term' : 'normal'
+  const initialMode: ExperienceMode = 'normal'
   localStorage.setItem(DEMO_SCENARIO_KEY, initialMode)
   return initialMode
 }
@@ -105,12 +103,10 @@ export async function activateNormalMode(): Promise<User> {
   localStorage.setItem(DEMO_SCENARIO_KEY, 'normal')
   const rememberedUser = getRememberedNormalUser()
   const profile = await getOnboardingProfile(rememberedUser.id)
-  const backendIdentityReady = !requiresNormalBackendIdentity(rememberedUser.id)
-    || hasNormalBackendIdentity(rememberedUser.id)
   const user = {
     ...rememberedUser,
     nickname: profile.nickname ?? rememberedUser.nickname,
-    onboardingCompleted: Boolean(profile.completedAt) && backendIdentityReady,
+    onboardingCompleted: Boolean(profile.completedAt),
   }
   rememberNormalUser(user)
   const activatedUser = await activateLocalUser(user)
@@ -182,7 +178,6 @@ export async function activateDemoScenario(
   const currentUser = await getCurrentUser()
   if (currentUser && !isPersonaUserId(currentUser.id)) {
     rememberNormalUser(currentUser)
-    hasNormalBackendIdentity(currentUser.id)
   }
 
   const option = getScenarioOption(scenario)
@@ -201,20 +196,26 @@ export async function activateDemoScenario(
 }
 
 export async function resolveOnboardingCompletionTarget(
-  _currentUser: User,
+  currentUser: User,
 ): Promise<{ mode: ExperienceMode; user: User }> {
+  localStorage.setItem(DEMO_SCENARIO_KEY, 'normal')
+  rememberNormalUser(currentUser)
   return {
-    mode: SUBMISSION_DEMO_SCENARIO,
-    user: await activateDemoScenario(SUBMISSION_DEMO_SCENARIO),
+    mode: 'normal',
+    user: currentUser,
   }
 }
 
 export async function resolveDemoScenarioEntryUser(
   currentUser: User | null,
 ): Promise<User | null> {
-  const expectedUserId = getScenarioOption(SUBMISSION_DEMO_SCENARIO).userId
-  const canReuseCurrentUser = currentUser?.id === expectedUserId && currentUser.onboardingCompleted
-  return canReuseCurrentUser
-    ? currentUser
-    : activateDemoScenario(SUBMISSION_DEMO_SCENARIO)
+  if (getStoredExperienceMode() === 'long_term') {
+    const expectedUserId = getScenarioOption(SUBMISSION_DEMO_SCENARIO).userId
+    return currentUser?.id === expectedUserId && currentUser.onboardingCompleted
+      ? currentUser
+      : activateDemoScenario(SUBMISSION_DEMO_SCENARIO)
+  }
+
+  if (currentUser && !isPersonaUserId(currentUser.id)) rememberNormalUser(currentUser)
+  return activateNormalMode()
 }
