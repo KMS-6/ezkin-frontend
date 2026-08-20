@@ -1,0 +1,107 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+@import "tailwindcss";
+
+@theme {
+  --color-ez-bg: #f8f7fc;
+  --color-ez-surface: #ffffff;
+  --color-ez-primary: #8b5cf6;
+  --color-ez-primary-dark: #4b2e91;
+  --color-ez-primary-soft: #eee9ff;
+  --color-ez-text: #191525;
+  --color-ez-secondary: #5f5968;
+  --color-ez-muted: #7d7685;
+  --color-ez-border: #ece8f3;
+  --color-ez-success: #55b992;
+  --color-ez-warning: #f2b054;
+  --color-ez-danger: #e96c75;
+  --color-ez-source: #34d399;
+  --color-ez-source-soft: #e3fbf6;
+  --color-ez-sos: #ec4899;
+
+  --shadow-card: 0 1px 8px rgba(46, 34, 77, 0.035);
+  --shadow-hero: 0 8px 24px rgba(88, 62, 151, 0.065);
+  --shadow-button: 0 6px 16px rgba(108, 76, 207, 0.16);
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", "Malgun Gothic", sans-serif;
+}
+
+:root {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  color: var(--color-ez-text);
+  background: #eeebf4;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #eeebf4;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  line-height: 1.5;
+  word-break: keep-all;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(217, 207, 247, 0.7), transparent 28%),
+    radial-gradient(circle at 85% 88%, rgba(237, 228, 255, 0.8), transparent 28%),
+    #efedf4;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  width: 100%;
+  min-height: 100vh;
+  margin-inline: auto;
+  overflow: clip;
+  background: var(--color-ez-bg);
+}
+
+@media (min-width: 640px) {
+  .app-shell {
+    width: min(430px, calc(100vw - 32px));
+    min-height: calc(100vh - 32px);
+    margin-block: 16px;
+    border: 1px solid rgba(226, 220, 235, 0.9);
+    border-radius: 28px;
+    box-shadow: 0 20px 60px rgba(53, 42, 79, 0.11);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
