@@ -72,6 +72,7 @@ export function ScanPage() {
   const [result, setResult] = useState<SkinScanResult | null>(null)
   const [patternAnalysis, setPatternAnalysis] = useState<TriggerAnalysisDetail | null>(null)
   const [errorCode, setErrorCode] = useState<SkinScanErrorCode>('camera_unavailable')
+  const [analysisErrorMessage, setAnalysisErrorMessage] = useState<string | null>(null)
 
   const cameraActive = state === 'requestingPermission' || state === 'camera' || state === 'countdown'
 
@@ -92,6 +93,7 @@ export function ScanPage() {
 
   const handleCameraError = useCallback((code: SkinScanErrorCode) => {
     setErrorCode(code)
+    if (code !== 'analysis_failed') setAnalysisErrorMessage(null)
     setCountdown(null)
     setState('error')
   }, [])
@@ -105,6 +107,7 @@ export function ScanPage() {
     setCapturedImage(null)
     setResult(null)
     setCountdown(null)
+    setAnalysisErrorMessage(null)
     setState('requestingPermission')
   }
 
@@ -165,8 +168,9 @@ export function ScanPage() {
       }
       setResult(nextResult)
       setState('result')
-    } catch {
+    } catch (error) {
       if (analysisRunRef.current !== runId) return
+      setAnalysisErrorMessage(error instanceof Error ? error.message : null)
       handleCameraError('analysis_failed')
     }
   }
@@ -177,6 +181,7 @@ export function ScanPage() {
     setResult(null)
     setPatternAnalysis(null)
     setCountdown(null)
+    setAnalysisErrorMessage(null)
     setState('idle')
   }
 
@@ -230,6 +235,7 @@ export function ScanPage() {
         {state === 'error' && (
           <ScanError
             code={errorCode}
+            description={analysisErrorMessage}
             onRetry={openCamera}
             onHome={() => navigate('/home')}
           />
@@ -327,7 +333,17 @@ function ScanResultView({
   )
 }
 
-function ScanError({ code, onRetry, onHome }: { code: SkinScanErrorCode; onRetry: () => void; onHome: () => void }) {
+function ScanError({
+  code,
+  description,
+  onRetry,
+  onHome,
+}: {
+  code: SkinScanErrorCode
+  description?: string | null
+  onRetry: () => void
+  onHome: () => void
+}) {
   const message = errorMessages[code]
   return (
     <section className="grid min-h-[520px] place-items-center text-center" role="alert">
@@ -336,7 +352,7 @@ function ScanError({ code, onRetry, onHome }: { code: SkinScanErrorCode; onRetry
           <Camera size={23} aria-hidden="true" />
         </span>
         <h1 className="mt-5 text-[19px] font-bold text-ez-text">{message.title}</h1>
-        <p className="mx-auto mt-2 max-w-[290px] text-[13px] leading-5 text-ez-muted">{message.description}</p>
+        <p className="mx-auto mt-2 max-w-[290px] text-[13px] leading-5 text-ez-muted">{description ?? message.description}</p>
         <PrimaryButton type="button" fullWidth className="mt-6" onClick={onRetry} icon={<RefreshCw size={16} aria-hidden="true" />}>
           다시 시도
         </PrimaryButton>

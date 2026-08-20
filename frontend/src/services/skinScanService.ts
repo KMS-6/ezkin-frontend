@@ -23,6 +23,25 @@ function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
+interface SkinScanApiResult {
+  scan_id: string
+  status: string
+  created_at: string
+  scores: Record<string, number> | null
+  limitation_notice: string | null
+  retry_after_seconds: number | null
+  failure: { code: string; message: string; retryable: boolean } | null
+}
+
+async function waitForSkinScan(scanId: string): Promise<SkinScanApiResult> {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const result = await apiRequest<SkinScanApiResult>(`/skin-scans/${scanId}`)
+    if (result.status !== 'processing') return result
+    await wait(Math.max(1, result.retry_after_seconds ?? 3) * 1000)
+  }
+  throw new Error('분석이 예상보다 오래 걸리고 있어요. 잠시 후 다시 시도해주세요.')
+}
+
 export async function analyzeSkin(image: Blob | File, userId?: string): Promise<SkinScanResult> {
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
 
@@ -42,14 +61,7 @@ export async function analyzeSkin(image: Blob | File, userId?: string): Promise<
     headers: { 'Idempotency-Key': crypto.randomUUID() },
     body,
   })
-  const result = await apiRequest<{
-    scan_id: string
-    status: string
-    created_at: string
-    scores: Record<string, number> | null
-    limitation_notice: string | null
-    failure: { message: string } | null
-  }>(`/skin-scans/${accepted.scan_id}`)
+  const result = await waitForSkinScan(accepted.scan_id)
   if (result.status === 'failed') {
     throw new Error(result.failure?.message ?? '피부 스캔을 분석하지 못했어요.')
   }
