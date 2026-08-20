@@ -9,7 +9,7 @@ import { getTodayQuickInput } from './quickInputService'
 import type { WaterChoice } from '../types/androidNotification'
 import { getMockPersona } from '../mocks/personas'
 import { formatDietChoice } from '../utils/dietChoice'
-import { getTodayDateLabel } from '../utils/appDateTime'
+import { getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData } from './weatherDataService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
@@ -80,7 +80,9 @@ export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry
 }
 
 export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
-  if (!USE_MOCK_API) return request<TodayLifeLog>('/life-logs/today')
+  if (!isDemoPersonaUser(userId) && !USE_MOCK_API) {
+    return request<TodayLifeLog>('/life-logs/today')
+  }
 
   const [connections, manualEntries] = await Promise.all([
     getConnectionStatus(userId),

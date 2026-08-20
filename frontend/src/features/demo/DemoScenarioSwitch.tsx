@@ -8,14 +8,10 @@ import {
 } from '../../services/demoScenarioService'
 import { connectWeatherData } from '../../services/weatherConnectionService'
 
-interface DemoScenarioSwitchProps {
-  userId: string
-}
-
-export function DemoScenarioSwitch({ userId }: DemoScenarioSwitchProps) {
+export function DemoScenarioSwitch() {
   const [switchingScenario, setSwitchingScenario] = useState<DemoScenario | 'normal' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const activeScenario = getActiveDemoScenario(userId)
+  const activeScenario = getActiveDemoScenario()
 
   const handleSwitch = async (scenario: DemoScenario | null) => {
     if (switchingScenario || scenario === activeScenario) return

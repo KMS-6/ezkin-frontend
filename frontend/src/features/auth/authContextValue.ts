@@ -8,7 +8,7 @@ export interface AuthContextValue {
   login: (credentials: LoginRequest) => Promise<User>
   signup: (payload: SignupRequest) => Promise<User>
   logout: () => Promise<void>
-  completeOnboarding: () => Promise<User>
+  completeOnboarding: (targetUser?: User) => Promise<User>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

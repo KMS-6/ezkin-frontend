@@ -5,7 +5,12 @@ import type {
   SignupRequest,
   User,
 } from '../types/auth'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 import { ACCESS_TOKEN_STORAGE_KEY } from './apiClient'
+import {
+  createDefaultNormalUser,
+  normalizeNormalUserIdentity,
+} from './normalUserIdentityService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -19,13 +24,11 @@ interface StoredMockUser {
   password: string
 }
 
-const localAppAccount: StoredMockUser = {
-  user: {
-    id: 'ezkin-demo-user',
-    email: 'local@ezkin.app',
-    onboardingCompleted: false,
-  },
-  password: '',
+function getLocalAppAccount(): StoredMockUser {
+  return {
+    user: createDefaultNormalUser(),
+    password: '',
+  }
 }
 
 export class AuthServiceError extends Error {
@@ -108,6 +111,7 @@ function parseMockUserStore(saved: string): StoredMockUser[] {
 }
 
 function normalizeMockUsers(users: StoredMockUser[]): StoredMockUser[] {
+  const localAppAccount = getLocalAppAccount()
   const normalized = [localAppAccount]
   const knownEmails = new Set([localAppAccount.user.email])
   const knownIds = new Set([localAppAccount.user.id])
@@ -279,7 +283,7 @@ export async function getCurrentUser(): Promise<User | null> {
   try {
     const session = JSON.parse(saved) as AuthResponse
     // 자동 진입으로 만든 Demo session은 session의 온보딩 상태를 그대로 사용합니다.
-    if (session.user.id === localAppAccount.user.id) return session.user
+    if (!isDemoPersonaUser(session.user.id)) return normalizeNormalUserIdentity(session.user)
     const account = readMockUsers().find(({ user }) => user.id === session.user.id)
     return account?.user ?? session.user
   } catch {
@@ -293,9 +297,7 @@ export async function getEntryUser(): Promise<User | null> {
   if (currentUser || !USE_MOCK_API) return currentUser
 
   const response: AuthResponse = {
-    user: {
-      ...localAppAccount.user,
-    },
+    user: createDefaultNormalUser(),
   }
 
   saveSession(response)
@@ -315,7 +317,13 @@ export async function activateLocalUser(user: User): Promise<User> {
 
 export const activateDemoUser = activateLocalUser
 
-export async function completeOnboarding(): Promise<User> {
+export async function completeOnboarding(activeUser?: User): Promise<User> {
+  if (activeUser && isDemoPersonaUser(activeUser.id)) {
+    const user = { ...activeUser, onboardingCompleted: true }
+    saveSession({ user })
+    return user
+  }
+
   if (!USE_MOCK_API) {
     const user = await request<User>('/users/me', {
       method: 'PATCH',

@@ -87,6 +87,7 @@ type CareContextRequester = (
 ) => Promise<CareContextPreviewResponse>
 
 interface CareContextBriefingOptions {
+  userId: string
   enabled?: boolean
   requestPreview?: CareContextRequester
   userReportsDiscomfort?: boolean
@@ -215,8 +216,9 @@ function mergeEnvironmentFactors(
 
 export async function applyCareContextToBriefing(
   briefing: BriefingData,
-  options: CareContextBriefingOptions = {},
+  options: CareContextBriefingOptions,
 ): Promise<BriefingData> {
+  if (isDemoPersonaUser(options.userId)) return briefing
   const enabled = options.enabled ?? isCareContextApiEnabled()
   if (!enabled) return briefing
 

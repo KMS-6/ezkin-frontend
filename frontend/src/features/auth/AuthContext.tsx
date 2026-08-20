@@ -65,11 +65,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  const completeOnboarding = useCallback(async () => {
-    const updatedUser = await completeOnboardingService()
+  const completeOnboarding = useCallback(async (targetUser?: User) => {
+    const updatedUser = await completeOnboardingService(targetUser ?? user ?? undefined)
     setUser(updatedUser)
     return updatedUser
-  }, [])
+  }, [user])
 
   const value = useMemo<AuthContextValue>(
     () => ({

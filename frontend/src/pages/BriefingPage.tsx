@@ -41,7 +41,7 @@ export function BriefingPage() {
       ])
       setBriefing(briefingData)
       setRoutine(routineData)
-      void applyCareContextToBriefing(briefingData).then(setBriefing)
+      void applyCareContextToBriefing(briefingData, { userId: user.id }).then(setBriefing)
     } catch {
       setHasError(true)
     } finally {

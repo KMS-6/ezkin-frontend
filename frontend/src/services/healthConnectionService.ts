@@ -1,6 +1,7 @@
 import type { HealthConnection } from '../types/healthConnection'
 import { getMockPersona } from '../mocks/personas'
 import { getOnboardingProfile, saveConnectionSettings } from './onboardingService'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -40,7 +41,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function getHealthConnection(userId: string): Promise<HealthConnection> {
-  if (!USE_MOCK_API) return request<HealthConnection>('/users/me/health-connection')
+  if (!isDemoPersonaUser(userId) && !USE_MOCK_API) {
+    return request<HealthConnection>('/users/me/health-connection')
+  }
 
   const profile = await getOnboardingProfile(userId)
   const persona = getMockPersona(userId)
@@ -57,7 +60,7 @@ export async function getHealthConnection(userId: string): Promise<HealthConnect
 }
 
 export async function connectHealthData(userId: string): Promise<HealthConnection> {
-  if (!USE_MOCK_API) {
+  if (!isDemoPersonaUser(userId) && !USE_MOCK_API) {
     return request<HealthConnection>('/users/me/health-connection', { method: 'POST' })
   }
 
@@ -84,7 +87,7 @@ export async function connectHealthData(userId: string): Promise<HealthConnectio
 }
 
 export async function disconnectHealthData(userId: string): Promise<HealthConnection> {
-  if (!USE_MOCK_API) {
+  if (!isDemoPersonaUser(userId) && !USE_MOCK_API) {
     return request<HealthConnection>('/users/me/health-connection', { method: 'DELETE' })
   }
 

@@ -41,7 +41,10 @@ export function HomePage() {
   const [briefing, setBriefing] = useState<BriefingData | null>(null)
   const [environment, setEnvironment] = useState<CurrentEnvironmentData | null>(null)
   const [todayRoutine, setTodayRoutine] = useState<TodayShelfRoutine | null>(null)
-  const [loadError, setLoadError] = useState(false)
+  const [isBriefingLoading, setIsBriefingLoading] = useState(true)
+  const [isRoutineLoading, setIsRoutineLoading] = useState(true)
+  const [briefingError, setBriefingError] = useState(false)
+  const [routineError, setRoutineError] = useState(false)
   const [period, setPeriod] = useState<RoutinePeriod>('am')
   const [waterChoice, setWaterChoice] = useState<WaterChoice | null>(null)
   const [dietChoice, setDietChoice] = useState<DietChoice | null>(null)
@@ -50,9 +53,14 @@ export function HomePage() {
   useEffect(() => {
     if (!user) return
     let isActive = true
-    setLoadError(false)
+    const isBriefingAvailable = isBriefingAvailableForUser(user.id)
+    setBriefingError(false)
+    setRoutineError(false)
+    setIsBriefingLoading(isBriefingAvailable)
+    setIsRoutineLoading(true)
     setBriefing(null)
     setEnvironment(null)
+    setTodayRoutine(null)
     setPeriod(getCurrentRoutinePeriod(user.id))
 
     try {
@@ -65,32 +73,35 @@ export function HomePage() {
       setDietChoice(null)
     }
 
-    if (isBriefingAvailableForUser(user.id)) {
-      void Promise.all([
-        getTodayBriefing(user.id),
-        getTodayRoutineForUser(user.id),
-      ]).then(([briefingData, routineData]) => {
+    if (isBriefingAvailable) {
+      void getTodayBriefing(user.id).then((briefingData) => {
         if (!isActive) return
         setBriefing(briefingData)
-        setTodayRoutine(routineData)
-        void applyCareContextToBriefing(briefingData).then((careContextBriefing) => {
+        void applyCareContextToBriefing(briefingData, { userId: user.id }).then((careContextBriefing) => {
           if (isActive) setBriefing(careContextBriefing)
-        })
+        }).catch(() => undefined)
       }).catch(() => {
-        if (isActive) setLoadError(true)
+        if (isActive) setBriefingError(true)
+      }).finally(() => {
+        if (isActive) setIsBriefingLoading(false)
       })
     } else {
-      void Promise.all([
-        getTodayRoutineForUser(user.id),
-        getConnectedEnvironment(user.id),
-      ]).then(([routineData, environmentData]) => {
-        if (!isActive) return
-        setTodayRoutine(routineData)
-        setEnvironment(environmentData ?? null)
+      void getConnectedEnvironment(user.id).then((environmentData) => {
+        if (isActive) {
+          setEnvironment(environmentData ?? null)
+        }
       }).catch(() => {
-        if (isActive) setLoadError(true)
+        if (isActive) setEnvironment(null)
       })
     }
+
+    void getTodayRoutineForUser(user.id).then((routineData) => {
+      if (isActive) setTodayRoutine(routineData)
+    }).catch(() => {
+      if (isActive) setRoutineError(true)
+    }).finally(() => {
+      if (isActive) setIsRoutineLoading(false)
+    })
 
     return () => {
       isActive = false
@@ -123,11 +134,9 @@ export function HomePage() {
   }
 
   if (!user) return null
-  if (loadError) return <HomeLoadError />
-  if (!todayRoutine || (isBriefingAvailableForUser(user.id) && !briefing)) return <HomeSkeleton />
 
-  const routine = todayRoutine[period]
-  const isShelfEmpty = todayRoutine.shelfProductCount === 0
+  const routine = todayRoutine?.[period] ?? []
+  const isShelfEmpty = todayRoutine?.shelfProductCount === 0
   return (
     <>
       <AppHeader
@@ -156,7 +165,7 @@ export function HomePage() {
       />
 
       <PageContainer className="pt-2">
-        {briefing ? <HeroCard className="p-5">
+        {isBriefingLoading ? <HomeBriefingSkeleton /> : briefing ? <HeroCard className="p-5">
           <div
             className="pointer-events-none absolute -right-16 -top-16 size-44 rounded-full bg-white/45"
             aria-hidden="true"
@@ -183,12 +192,12 @@ export function HomePage() {
               </Link>
             </div>
           </div>
-        </HeroCard> : <HomeBriefingUnavailable environment={environment} />}
+        </HeroCard> : <HomeBriefingUnavailable environment={environment} failed={briefingError} />}
 
         <section className="mt-5">
           <div className="mb-2.5 flex items-center justify-between gap-3">
             <h2 className="text-[17px] font-bold tracking-[-0.025em] text-ez-text">오늘 루틴</h2>
-            {!isShelfEmpty && (
+            {todayRoutine && !isShelfEmpty && (
               <div
                 className="flex rounded-[10px] bg-[#eeecf2] p-0.5"
                 role="group"
@@ -212,7 +221,11 @@ export function HomePage() {
             )}
           </div>
 
-          {isShelfEmpty ? (
+          {isRoutineLoading ? (
+            <HomeRoutineSkeleton />
+          ) : routineError || !todayRoutine ? (
+            <HomeRoutineUnavailable />
+          ) : isShelfEmpty ? (
             <Card className="flex items-center gap-3.5 p-4">
               <span className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-ez-primary-soft text-ez-primary">
                 <PackageOpen size={19} aria-hidden="true" />
@@ -290,7 +303,13 @@ async function getConnectedEnvironment(userId: string): Promise<CurrentEnvironme
   return profile.weatherConnected ? getCurrentWeatherData(userId) : undefined
 }
 
-function HomeBriefingUnavailable({ environment }: { environment: CurrentEnvironmentData | null }) {
+function HomeBriefingUnavailable({
+  environment,
+  failed,
+}: {
+  environment: CurrentEnvironmentData | null
+  failed: boolean
+}) {
   const environmentValues = [
     environment?.temperatureC !== undefined ? `기온 ${environment.temperatureC}°C` : null,
     environment?.humidityPercent !== undefined ? `습도 ${environment.humidityPercent}%` : null,
@@ -302,7 +321,7 @@ function HomeBriefingUnavailable({ environment }: { environment: CurrentEnvironm
       <div className="relative">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ez-primary">Today</p>
         <h1 className="mt-2 text-[22px] font-bold leading-[1.3] tracking-[-0.03em] text-ez-text">
-          오늘 케어 안내를 준비 중이에요.
+          {failed ? '오늘 케어 안내를 불러오지 못했어요.' : '오늘 케어 안내를 준비 중이에요.'}
         </h1>
         <p className="mt-3 text-[13px] leading-[1.65] text-ez-secondary">
           날씨와 내 화장대 정보는 계속 확인할 수 있어요.
@@ -348,34 +367,35 @@ function CompactSignalSummary({ briefing, latestScan }: { briefing: BriefingData
   )
 }
 
-function HomeSkeleton() {
+function HomeBriefingSkeleton() {
   return (
-    <>
-      <AppHeader showLogo />
-      <PageContainer className="animate-pulse pt-2" aria-label="오늘 브리핑 불러오는 중">
-        <div className="h-[210px] rounded-[24px] bg-[#eee9f8]" />
-        <div className="mt-5 h-[200px] rounded-[20px] bg-[#f0edf5]" />
-      </PageContainer>
-    </>
+    <div
+      className="h-[210px] animate-pulse rounded-[24px] bg-[#eee9f8]"
+      aria-label="오늘 브리핑 불러오는 중"
+    />
   )
 }
 
-function HomeLoadError() {
+function HomeRoutineSkeleton() {
   return (
-    <>
-      <AppHeader showLogo />
-      <PageContainer className="grid place-items-center py-10">
-        <Card className="w-full p-6 text-center">
-          <h1 className="text-[16px] font-semibold text-ez-text">오늘의 케어를 불러오지 못했어요.</h1>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="mt-4 min-h-10 rounded-xl bg-ez-primary-soft px-4 text-[13px] font-semibold text-ez-primary"
-          >
-            다시 시도
-          </button>
-        </Card>
-      </PageContainer>
-    </>
+    <div
+      className="h-[116px] animate-pulse rounded-[20px] bg-[#f0edf5]"
+      aria-label="오늘 루틴 불러오는 중"
+    />
+  )
+}
+
+function HomeRoutineUnavailable() {
+  return (
+    <Card className="p-4">
+      <p className="text-[13px] font-semibold text-ez-text">내 화장대 정보를 불러오지 못했어요.</p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="mt-1 min-h-9 text-[12px] font-semibold text-ez-primary"
+      >
+        다시 시도
+      </button>
+    </Card>
   )
 }

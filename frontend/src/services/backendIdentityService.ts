@@ -1,6 +1,7 @@
 import type { User } from '../types/auth'
 import { isDemoPersonaUser } from '../utils/appDateTime'
 import { ACCESS_TOKEN_STORAGE_KEY, apiRequest } from './apiClient'
+import { getOrCreateNormalUserEmail } from './normalUserIdentityService'
 
 const NORMAL_BACKEND_IDENTITY_KEY = 'ezkin:normal-backend-identity'
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -23,6 +24,7 @@ export interface NormalBackendIdentity {
   frontendUserId: string
   backendUserId: string
   accessToken: string
+  email?: string
 }
 
 export class BackendIdentityRequiredError extends Error {
@@ -48,6 +50,9 @@ function readStoredIdentity(): NormalBackendIdentity | null {
       && typeof identity.accessToken === 'string'
       && identity.accessToken.length > 0
     ) {
+      if (typeof identity.email === 'string') {
+        identity.email = identity.email.trim().toLowerCase()
+      }
       return identity as NormalBackendIdentity
     }
   } catch {
@@ -64,6 +69,7 @@ function migrateActiveRealToken(userId: string): NormalBackendIdentity | null {
     frontendUserId: userId,
     backendUserId: userId,
     accessToken: token,
+    email: getOrCreateNormalUserEmail(undefined, userId),
   }
   localStorage.setItem(NORMAL_BACKEND_IDENTITY_KEY, JSON.stringify(identity))
   return identity
@@ -117,7 +123,7 @@ export async function ensureNormalBackendIdentity(
   const response = await apiRequest<UserRegistrationResponse>('/users', {
     method: 'POST',
     body: JSON.stringify({
-      email: user.email,
+      email: getOrCreateNormalUserEmail(user.email, user.id),
       nickname: nickname.trim() || user.nickname?.trim() || 'EZkin 사용자',
     }),
   }, { includePersona: false })
@@ -126,6 +132,7 @@ export async function ensureNormalBackendIdentity(
     frontendUserId: user.id,
     backendUserId: response.user.id,
     accessToken: response.access_token,
+    email: response.user.email,
   }
   localStorage.setItem(NORMAL_BACKEND_IDENTITY_KEY, JSON.stringify(identity))
   localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, identity.accessToken)

@@ -63,6 +63,7 @@ const server = await createServer({
 try {
   const auth = await server.ssrLoadModule('/src/services/authService.ts')
   const scenario = await server.ssrLoadModule('/src/services/demoScenarioService.ts')
+  const normalIdentity = await server.ssrLoadModule('/src/services/normalUserIdentityService.ts')
   const onboarding = await server.ssrLoadModule('/src/services/onboardingService.ts')
   const products = await server.ssrLoadModule('/src/services/productService.ts')
   const briefing = await server.ssrLoadModule('/src/services/briefingService.ts')
@@ -84,18 +85,79 @@ try {
   const appDateTime = await server.ssrLoadModule('/src/utils/appDateTime.ts')
   const userFeatures = await server.ssrLoadModule('/src/services/userFeatureAvailability.ts')
 
-  const automaticUser = await auth.getEntryUser()
-  const freshNormalUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
+  const firstInstallationEmail = normalIdentity.createDefaultNormalUser().email
+  assert(/^local-[0-9a-f-]{36}@ezkin\.app$/.test(firstInstallationEmail), 'fresh normal installation did not create an internal UUID email')
+  assert(storage.getItem('ezkin:normal-user-email') === firstInstallationEmail, 'generated normal email was not persisted immediately')
+  assert(normalIdentity.createDefaultNormalUser().email === firstInstallationEmail, 'the same installation generated a different email on retry')
+  removeAllTestKeys(storage)
+  const secondInstallationEmail = normalIdentity.createDefaultNormalUser().email
+  assert(secondInstallationEmail !== firstInstallationEmail, 'separate fresh installations reused the same internal email')
+  removeAllTestKeys(storage)
+
+  storage.setItem('ezkin:normal-user', JSON.stringify({
+    id: normalIdentity.NORMAL_USER_ID,
+    email: 'local@ezkin.app',
+    onboardingCompleted: true,
+  }))
+  storage.setItem('ezkin:normal-backend-identity', JSON.stringify({
+    frontendUserId: normalIdentity.NORMAL_USER_ID,
+    backendUserId: 'existing-backend-user',
+    accessToken: 'existing-backend-token',
+  }))
+  assert(normalIdentity.createDefaultNormalUser().email === 'local@ezkin.app', 'existing backend identity did not preserve its legacy email')
+  removeAllTestKeys(storage)
+
+  let defaultEntryBackendCalls = 0
+  let automaticUser = null
+  let defaultLongTermUser = null
+  const defaultEntryFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => {
+      defaultEntryBackendCalls += 1
+      throw new Error('default long-term entry must not call the EZkin backend')
+    }
+    automaticUser = await auth.getEntryUser()
+    defaultLongTermUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
+  } finally {
+    globalThis.fetch = defaultEntryFetch
+  }
+  assert(defaultLongTermUser?.id === scenario.DEMO_LONG_TERM_USER_ID && defaultLongTermUser.onboardingCompleted, 'fresh install did not enter the completed long-term Demo')
+  assert(scenario.getStoredExperienceMode() === 'long_term' && storage.getItem('ezkin:demo-scenario') === 'long_term', 'fresh install did not persist the long-term mode as the single source')
+  assert(defaultEntryBackendCalls === 0, 'fresh long-term Demo entry called the EZkin backend')
+
+  const freshNormalUser = await scenario.activateNormalMode()
   const freshNormalProfile = await onboarding.getOnboardingProfile(freshNormalUser.id)
-  assert(freshNormalUser.id === scenario.NORMAL_USER_ID && !freshNormalUser.onboardingCompleted, 'Demo OFF did not start with the stable fresh user')
-  assert(freshNormalProfile.currentStep === 1 && !freshNormalProfile.completedAt, 'Demo OFF skipped fresh onboarding')
+  assert(freshNormalUser.id === scenario.NORMAL_USER_ID && !freshNormalUser.onboardingCompleted, 'Settings normal mode did not restore the stable normal identity')
+  assert(freshNormalUser.email === automaticUser.email && freshNormalUser.email === storage.getItem('ezkin:normal-user-email'), 'Auth and Demo scenario services used different normal-user emails')
+  assert(freshNormalProfile.currentStep === 1 && !freshNormalProfile.completedAt, 'fresh normal mode did not start onboarding at step 1')
+  const resumeUserId = 'onboarding-resume-user'
+  await onboarding.saveCurrentStep(resumeUserId, 5)
+  assert((await onboarding.getOnboardingProfile(resumeUserId)).currentStep === 5, 'saved onboarding step did not resume')
   assert((await products.getMyProducts(freshNormalUser.id)).length === 0, 'Persona cosmetics leaked into the fresh normal user')
   assert((await health.getHealthConnection(freshNormalUser.id)).status === 'not_requested', 'Persona Health state leaked into the fresh normal user')
   assert(!userFeatures.isBriefingAvailableForUser(freshNormalUser.id), 'normal user exposed Persona-only Briefing')
   assert(!userFeatures.isSkinScanAvailableForUser(freshNormalUser.id), 'normal user exposed Persona-only Skin Scan')
   assert(!userFeatures.isAnalysisAvailableForUser(freshNormalUser.id), 'normal user exposed Persona-only Analysis')
   assert(quickInput.getTodayQuickInput(freshNormalUser.id) === null, 'Persona quick input leaked into the fresh normal user')
-  assert(scenario.getStoredDemoScenario() === null, 'Demo OFF was stored as a Persona scenario')
+  assert(scenario.getStoredExperienceMode() === 'normal' && scenario.getStoredDemoScenario() === null, 'normal selection did not deactivate the Demo mode')
+  let staleModeCompletionCalls = 0
+  let staleModeCompletionTarget = null
+  const staleModeFetch = globalThis.fetch
+  try {
+    storage.setItem('ezkin:demo-scenario', 'long_term')
+    globalThis.fetch = async () => {
+      staleModeCompletionCalls += 1
+      throw new Error('Demo onboarding completion must not call the EZkin backend')
+    }
+    staleModeCompletionTarget = await scenario.resolveOnboardingCompletionTarget(freshNormalUser)
+    await onboarding.completeOnboardingProfile(staleModeCompletionTarget.user.id)
+    await auth.completeOnboarding(staleModeCompletionTarget.user)
+  } finally {
+    globalThis.fetch = staleModeFetch
+  }
+  assert(staleModeCompletionTarget?.mode === 'long_term' && staleModeCompletionTarget.user.id === scenario.DEMO_LONG_TERM_USER_ID, 'stale normal React user was not reconciled with the active long-term mode')
+  assert(staleModeCompletionCalls === 0 && !storage.getItem('ezkin:access-token'), 'Demo onboarding completion created a backend identity or token')
+  await scenario.activateNormalMode()
   const normalLocalTime = new Date(2026, 0, 2, 19, 30, 0)
   assert(appDateTime.getTodayDateKey(freshNormalUser.id, normalLocalTime) === '2026-01-02', 'normal user today key does not use the device-local calendar date')
   assert(appDateTime.getTodayDateLabel(freshNormalUser.id, normalLocalTime) === '1월 2일 · 금요일', 'normal user date label is not device-local')
@@ -276,6 +338,7 @@ try {
 
   let briefingCareRequest = null
   const careEnabledBriefing = await briefing.applyCareContextToBriefing(briefingLongTerm, {
+    userId: freshNormalUser.id,
     enabled: true,
     requestPreview: async (request) => {
       briefingCareRequest = request
@@ -289,6 +352,7 @@ try {
   assert(careEnabledBriefing.careContext?.care_mode === 'moisture_focused', 'Briefing did not preserve backend care_mode')
 
   const uvFocusedBriefing = await briefing.applyCareContextToBriefing(briefingLongTerm, {
+    userId: freshNormalUser.id,
     enabled: true,
     requestPreview: async (request) => {
       assert(request.uv_index === 4.2, 'current live UV value was not sent to Care Context')
@@ -309,6 +373,7 @@ try {
   }
   let missingEnvironmentCalls = 0
   const missingEnvironmentResult = await briefing.applyCareContextToBriefing(noEnvironmentBriefing, {
+    userId: freshNormalUser.id,
     enabled: true,
     requestPreview: async () => {
       missingEnvironmentCalls += 1
@@ -318,6 +383,7 @@ try {
   assert(missingEnvironmentCalls === 0 && missingEnvironmentResult === noEnvironmentBriefing, 'missing environment values were fabricated to call Care Context')
 
   const failedCareContextBriefing = await briefing.applyCareContextToBriefing(briefingLongTerm, {
+    userId: freshNormalUser.id,
     enabled: true,
     requestPreview: async () => { throw new Error('backend unavailable') },
   })
@@ -326,6 +392,7 @@ try {
 
   let disabledCareContextCalls = 0
   const careDisabledBriefing = await briefing.applyCareContextToBriefing(briefingLongTerm, {
+    userId: freshNormalUser.id,
     enabled: false,
     requestPreview: async () => {
       disabledCareContextCalls += 1
@@ -333,6 +400,16 @@ try {
     },
   })
   assert(careDisabledBriefing === briefingLongTerm && disabledCareContextCalls === 0, 'disabled Care Context changed existing demo Briefing behavior')
+  let demoCareContextCalls = 0
+  const demoCareContextBriefing = await briefing.applyCareContextToBriefing(briefingLongTerm, {
+    userId: longTermUser.id,
+    enabled: true,
+    requestPreview: async () => {
+      demoCareContextCalls += 1
+      throw new Error('long-term Demo must not call Care Context')
+    },
+  })
+  assert(demoCareContextCalls === 0 && demoCareContextBriefing === briefingLongTerm, 'long-term Demo called the Care Context backend')
   assert(careContext.isCareContextApiEnabled('false') === false && careContext.isCareContextApiEnabled('true') === true, 'VITE_USE_CARE_CONTEXT_API string parsing is incorrect')
 
   assert(longTermUser.id === scenario.DEMO_LONG_TERM_USER_ID && profileLongTerm.nickname === '최연서' && profileLongTerm.gender === 'female', 'long-term demo persona is incorrect')
@@ -357,6 +434,7 @@ try {
   assert(patternLongTerm.observed_pattern.sample_size === undefined && patternLongTerm.observed_pattern.match_count === undefined, 'long-term demo fabricated Pattern occurrence counts')
   assert(!('timeline' in patternLongTerm) && !('target_skin_event' in patternLongTerm) && !('next_action' in patternLongTerm), 'frontend-only Pattern fields remain')
   assert(sosLongTerm.userId === longTermUser.id && sosLongTerm.products.length > 0, 'long-term SOS context is incomplete')
+  assert(sosLongTerm.latestScan?.summary === patternLongTerm.observed_pattern.text, 'long-term SOS context did not reuse the prepared Pattern observation')
   assert(healthMetrics.getAvailableHealthMetricLabels({ sleep_hours: true, hrv_ms: true, active_energy_kcal: true }).join(',') === '수면,HRV,활동', 'optional active energy cannot be represented')
 
   let mockSafetyCalls = 0
@@ -369,6 +447,49 @@ try {
   assert(mockSafetyCalls === 0 && mockSOSResponse.message.includes('레티놀'), 'mock mode did not preserve the existing SOS response flow')
 
   const originalFetch = globalThis.fetch
+  let demoSOSBackendCalls = 0
+  let demoSOSResponse = null
+  let demoUrgentResponse = null
+  let demoPatternResponse = null
+  let demoCompletedUser = null
+  let demoCompletedProfile = null
+  try {
+    globalThis.fetch = async () => {
+      demoSOSBackendCalls += 1
+      throw new Error('long-term Demo must not call the EZkin backend')
+    }
+    demoSOSResponse = await sosService.sendSOSMessage({ message: '레티놀 써도 돼?', context: sosLongTerm })
+    demoUrgentResponse = await sosService.sendSOSMessage({ message: '숨이 안 쉬어지고 입술이 부었어', context: sosLongTerm })
+    demoPatternResponse = await sosService.sendSOSMessage({ message: '최근 패턴 알려줘', context: sosLongTerm })
+    const incompleteDemoUser = { ...longTermUser, onboardingCompleted: false }
+    await auth.activateLocalUser(incompleteDemoUser)
+    await products.syncPendingMyProducts(longTermUser.id, profileLongTerm.registeredProductIds)
+    demoCompletedProfile = await onboarding.completeOnboardingProfile(longTermUser.id)
+    demoCompletedUser = await auth.completeOnboarding(incompleteDemoUser)
+    await Promise.all([
+      products.getMyProducts(longTermUser.id),
+      health.getHealthConnection(longTermUser.id),
+      lifeLog.getTodayLifeLog(longTermUser.id),
+      briefing.getTodayBriefing(longTermUser.id),
+      analysis.getAnalysisEligibility(longTermUser.id),
+      analysis.getAnalysisReport(longTermUser.id, 14),
+      analysis.getAnalysisReport(longTermUser.id, 30),
+      analysis.getTriggerAnalysisDetail(longTermUser.id, 'scn_c1_20'),
+      skinScan.analyzeSkin(new Blob(['demo-scan'], { type: 'image/jpeg' }), longTermUser.id),
+      sosContext.getSOSContext(longTermUser.id),
+      briefing.applyCareContextToBriefing(briefingLongTerm, {
+        userId: longTermUser.id,
+        enabled: true,
+      }),
+    ])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+  assert(demoSOSBackendCalls === 0 && demoSOSResponse?.message.includes('레티놀'), 'long-term Demo core flow called an EZkin backend endpoint')
+  assert(demoCompletedProfile?.completedAt && demoCompletedUser?.onboardingCompleted, 'long-term Demo onboarding did not complete locally while backend was unavailable')
+  assert(demoUrgentResponse?.professionalHelpSuggested === true && demoUrgentResponse?.safetyLevel === 'urgent', 'long-term Demo SOS did not keep deterministic urgent guidance')
+  assert(demoPatternResponse?.message.includes(patternLongTerm.observed_pattern.text), 'long-term Demo SOS did not use the prepared Pattern context')
+
   let dedicatedFlagRequestUrl = ''
   let dedicatedFlagResponse = null
   try {
@@ -380,7 +501,10 @@ try {
         professional_help_suggested: true,
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }
-    dedicatedFlagResponse = await sosService.sendSOSMessage({ message: '긴급한 증상이 있어', context: sosLongTerm })
+    dedicatedFlagResponse = await sosService.sendSOSMessage({
+      message: '긴급한 증상이 있어',
+      context: { ...sosLongTerm, userId: freshNormalUser.id },
+    })
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -453,7 +577,7 @@ try {
   assert((await health.getHealthConnection(restoredNormalUser.id)).status === 'not_requested', 'long-term Health state leaked into normal storage')
   assert(!userFeatures.isAnalysisAvailableForUser(restoredNormalUser.id), 'long-term Analysis capability leaked into normal mode')
   assert(quickInput.getSavedDietChoice(restoredNormalUser.id) === 'normal', 'normal quick input was not restored')
-  assert(scenario.getStoredDemoScenario() === null, 'Demo OFF retained a Persona selection')
+  assert(scenario.getStoredExperienceMode() === 'normal' && scenario.getStoredDemoScenario() === null, 'normal mode did not remain the active single-source selection')
 
   await scenario.activateDemoScenario('long_term')
   const refreshedUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
@@ -493,7 +617,9 @@ try {
   }))
   storage.setItem('ezkin:diet-choices', JSON.stringify({ [existingUserId]: 'spicy' }))
 
-  const existingUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
+  const existingDefaultDemoUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
+  assert(existingDefaultDemoUser.id === scenario.DEMO_LONG_TERM_USER_ID, 'fresh mode state did not default an existing installation to the review Demo')
+  const existingUser = await scenario.activateNormalMode()
   assert(existingUser.id === existingUserId, 'existing non-demo user id was replaced')
   assert((await onboarding.getOnboardingProfile(existingUserId)).skinType === 'dry', 'existing skin data was replaced')
   assert((await products.getMyProducts(existingUserId))[0]?.id === 'hyaluronic-serum', 'existing shelf was replaced')
@@ -539,10 +665,11 @@ try {
       body: typeof init.body === 'string' ? JSON.parse(init.body) : null,
     })
     if (url.endsWith('/users') && init.method === 'POST') {
+      const requestBody = liveBoundaryCalls.at(-1)?.body
       return new Response(JSON.stringify({
         user: {
           id: 'backend-live-user',
-          email: 'normal-live@ezkin.app',
+          email: requestBody?.email,
           nickname: 'normal live',
           created_at: '2026-08-20T10:00:00.000Z',
         },
@@ -587,6 +714,7 @@ try {
   try {
     storage.removeItem('ezkin:normal-backend-identity')
     storage.removeItem('ezkin:access-token')
+    storage.removeItem('ezkin:normal-user-email')
     const liveSkinScan = await liveBoundaryServer.ssrLoadModule('/src/services/skinScanService.ts')
     const liveProducts = await liveBoundaryServer.ssrLoadModule('/src/services/productService.ts')
     const liveIdentity = await liveBoundaryServer.ssrLoadModule('/src/services/backendIdentityService.ts')
@@ -613,15 +741,35 @@ try {
     ])
     assert(liveBoundaryCalls.length === 0, 'Persona-only API requests escaped in normal mode')
 
-    await liveIdentity.ensureNormalBackendIdentity({
+    const liveNormalUser = {
       id: 'normal-live-user',
-      email: 'normal-live@ezkin.app',
+      email: 'local@ezkin.app',
       onboardingCompleted: false,
-    }, 'normal live')
+    }
+    await liveIdentity.ensureNormalBackendIdentity(liveNormalUser, 'normal live')
     const registrationCall = liveBoundaryCalls.find((call) => call.url.endsWith('/users'))
-    assert(registrationCall?.method === 'POST' && registrationCall.body?.email === 'normal-live@ezkin.app', 'normal onboarding did not POST the /users contract')
+    const registeredEmail = registrationCall?.body?.email
+    assert(registrationCall?.method === 'POST' && /^local-[0-9a-f-]{36}@ezkin\.app$/.test(registeredEmail), 'normal onboarding did not POST a unique internal email')
+    assert(registeredEmail === storage.getItem('ezkin:normal-user-email'), 'POST /users did not reuse the persisted installation email')
     assert(registrationCall.personaId === null, 'normal user registration leaked a Demo Persona identity')
     assert(storage.getItem('ezkin:access-token') === 'real-backend-token', 'backend access_token was not stored')
+    const registrationCount = liveBoundaryCalls.filter((call) => call.url.endsWith('/users')).length
+    await liveIdentity.ensureNormalBackendIdentity(liveNormalUser, 'normal live')
+    assert(liveBoundaryCalls.filter((call) => call.url.endsWith('/users')).length === registrationCount, 'existing normal backend identity triggered another POST /users')
+
+    const firstStoredBackendIdentity = storage.getItem('ezkin:normal-backend-identity')
+    storage.removeItem('ezkin:normal-backend-identity')
+    storage.removeItem('ezkin:access-token')
+    storage.removeItem('ezkin:normal-user-email')
+    storage.removeItem('ezkin:normal-user')
+    storage.removeItem('ezkin:auth-session')
+    const otherInstallationUser = normalIdentity.createDefaultNormalUser()
+    await liveIdentity.ensureNormalBackendIdentity(otherInstallationUser, 'other normal live')
+    const registrationCalls = liveBoundaryCalls.filter((call) => call.url.endsWith('/users'))
+    assert(registrationCalls.length === 2 && registrationCalls[1].body?.email !== registeredEmail, 'a separate fresh installation did not POST a different unique email')
+
+    storage.setItem('ezkin:normal-backend-identity', firstStoredBackendIdentity)
+    storage.setItem('ezkin:normal-user-email', registeredEmail)
     liveIdentity.clearActiveBackendToken()
     assert(liveIdentity.restoreNormalBackendIdentity('normal-live-user') && storage.getItem('ezkin:access-token') === 'real-backend-token', 'Demo to normal could not restore the persisted backend token')
     liveBoundaryCalls.length = 0
@@ -744,6 +892,7 @@ try {
   const productServiceSource = await readFile(new URL('../src/services/productService.ts', import.meta.url), 'utf8')
   const skinScanServiceSource = await readFile(new URL('../src/services/skinScanService.ts', import.meta.url), 'utf8')
   const homePageSource = await readFile(new URL('../src/pages/HomePage.tsx', import.meta.url), 'utf8')
+  const authServiceSource = await readFile(new URL('../src/services/authService.ts', import.meta.url), 'utf8')
   const briefingPageSource = await readFile(new URL('../src/pages/BriefingPage.tsx', import.meta.url), 'utf8')
   const triggerPageSource = await readFile(new URL('../src/pages/TriggerAnalysisPage.tsx', import.meta.url), 'utf8')
   const featureAvailabilitySource = await readFile(new URL('../src/services/userFeatureAvailability.ts', import.meta.url), 'utf8')
@@ -754,6 +903,11 @@ try {
   assert(metricGroupSource.includes('grid-cols-3') && metricGroupSource.includes('divide-x'), 'Environment is not a three-column card')
   assert(scanPageSource.includes('<PatternAnalysisContent analysis={patternAnalysis} />') && !scanPageSource.includes('변화 전 72시간 보기'), 'Pattern Analysis is not inline below the Scan result')
   assert(homePageSource.includes('isBriefingAvailableForUser') && homePageSource.includes('getConnectedEnvironment(user.id)') && homePageSource.includes('profile.weatherConnected ? getCurrentWeatherData(userId) : undefined') && homePageSource.includes('오늘 케어 안내를 준비 중이에요.'), 'normal Home does not isolate unavailable Briefing from consented live Weather/Shelf')
+  assert(homePageSource.includes('to="/settings"') && !homePageSource.includes('if (loadError)') && !homePageSource.includes('return <HomeLoadError'), 'Home API failure can still replace the AppHeader and Settings entry path')
+  assert(homePageSource.includes('setBriefingError(true)') && homePageSource.includes('setRoutineError(true)') && homePageSource.includes('<HomeRoutineUnavailable />'), 'Home Briefing and Shelf failures are not isolated to their sections')
+  assert(!/Promise\.all\(\[\s*getTodayBriefing\(user\.id\),\s*getTodayRoutineForUser\(user\.id\)/.test(homePageSource), 'Home still couples Briefing and Shelf failure in one request boundary')
+  assert(settingsPageSource.indexOf('<DemoScenarioSwitch />') > settingsPageSource.indexOf("hasError || !profile"), 'Settings mode switch still depends on successful profile/backend data rendering')
+  assert(onboardingPageSource.includes('resolveOnboardingCompletionTarget(user)') && onboardingPageSource.indexOf("completionTarget.mode === 'long_term'") < onboardingPageSource.indexOf('requiresNormalBackendIdentity(user.id)') && authServiceSource.includes('activeUser && isDemoPersonaUser(activeUser.id)'), 'active long-term mode is not resolved before normal backend onboarding work')
   assert(briefingPageSource.includes('isBriefingAvailableForUser') && briefingPageSource.includes('오늘 케어 안내를 준비 중이에요.'), 'normal Briefing does not render the unavailable state')
   assert(scanPageSource.includes('isSkinScanAvailableForUser') && scanPageSource.includes('현재 분석 기능을 준비 중이에요.'), 'normal Scan does not render the unavailable state')
   assert(analysisPageSource.includes('isAnalysisAvailableForUser') && analysisPageSource.includes('분석 기능을 준비 중이에요.') && triggerPageSource.includes('isAnalysisAvailableForUser'), 'normal Analysis routes do not render unavailable states')
@@ -787,10 +941,12 @@ try {
   assert(weatherDataSource.includes('CapacitorWebFetch') && weatherDataSource.includes('WEATHER_REQUEST_TIMEOUT_MS = 3_000') && !weatherDataSource.includes('console.'), 'Android weather request logging or timeout is incorrect')
   assert(quickCareServiceSource.includes("apiRequest<unknown>('/quick-care/safety-check'") && !sosPageSource.includes('fetch('), 'Quick Care does not follow UI → service → api client')
   assert(sosServiceSource.includes('import.meta.env.VITE_USE_QUICK_CARE_API') && !sosServiceSource.includes('VITE_USE_MOCK_API'), 'Quick Care mode selection still depends on the global mock flag')
+  assert(sosServiceSource.includes('USE_QUICK_CARE_API && !isDemoUser') && sosServiceSource.includes('createDemoResponse'), 'long-term Demo SOS is not isolated from Quick Care')
   assert(careContextServiceSource.includes('import.meta.env.VITE_USE_CARE_CONTEXT_API') && !careContextServiceSource.includes('VITE_USE_MOCK_API'), 'Care Context mode selection depends on the global mock flag')
   assert(careContextServiceSource.includes("apiRequest<unknown>('/care-contexts/preview'") && !briefingServiceSource.includes("fetch(`${API_BASE_URL}/care-contexts"), 'Care Context does not follow service to api client architecture')
   assert(careContextServiceSource.includes('CARE_CONTEXT_TIMEOUT_MS = 1_500') && careContextServiceSource.includes('controller.abort()'), 'Care Context does not enforce the 1.5 second abort timeout')
-  assert(homePageSource.indexOf('setBriefing(briefingData)') < homePageSource.lastIndexOf('applyCareContextToBriefing(briefingData)'), 'Home waits for Care Context before rendering the base Briefing')
+  assert(homePageSource.indexOf('setBriefing(briefingData)') < homePageSource.lastIndexOf('applyCareContextToBriefing(briefingData, { userId: user.id })'), 'Home waits for Care Context before rendering the base Briefing')
+  assert(briefingPageSource.includes('applyCareContextToBriefing(briefingData, { userId: user.id })') && briefingServiceSource.includes('isDemoPersonaUser(options.userId)'), 'long-term Demo Care Context boundary is missing')
   assert(sosPageSource.includes('지금은 답변을 준비하지 못했어요.\\n잠시 후 다시 시도해 주세요.') && sosPageSource.includes('failedRequest.message'), 'SOS safety-check failure does not preserve the polished retryable message')
   assert(productServiceSource.includes('!isDemoPersonaUser(userId) && (USE_SHELF_API || !USE_MOCK_API)'), 'normal Shelf live API boundary is incorrect')
   assert(skinScanServiceSource.includes('!isDemoPersonaUser(userId) && (USE_SKIN_SCAN_API || !USE_MOCK_API)') && skinScanServiceSource.includes("apiRequest<{ scan_id: string }>('/skin-scans'"), 'normal Skin Scan does not use the live /skin-scans boundary')
@@ -804,8 +960,8 @@ try {
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/home', previousPathname: '/shelf', canGoBack: true }) === 'stay', 'home back did not stay in the app')
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/onboarding', canGoBack: false }) === 'stay', 'onboarding first step did not stay in the app')
 
-  console.log('PASS normal user and long-term demo use one isolated mode model')
-  console.log('PASS Demo OFF fresh onboarding, completed-user restore, and Persona isolation')
+  console.log('PASS fresh install defaults to backend-free long-term Demo Home')
+  console.log('PASS normal selection starts/restores onboarding and identity independently')
   console.log('PASS long-term prepared Health, Shelf, Report, Pattern, lifestyle, and SOS data')
   console.log('PASS normal/long-term isolation and mode persistence')
   console.log('PASS demo env flag true/false contract')

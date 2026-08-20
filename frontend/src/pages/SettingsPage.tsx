@@ -195,7 +195,7 @@ export function SettingsPage() {
           </Disclaimer>
         </div>
 
-        <DemoScenarioSwitch userId={user.id} />
+        <DemoScenarioSwitch />
 
         <AndroidNotificationTestSection userId={user.id} />
 
