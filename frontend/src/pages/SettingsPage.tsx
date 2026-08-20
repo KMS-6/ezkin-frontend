@@ -17,7 +17,6 @@ import { PageContainer } from '../components/PageContainer'
 import { Card } from '../components/ui/Card'
 import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
-import { DemoScenarioSwitch } from '../features/demo/DemoScenarioSwitch'
 import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
 import { AndroidNotificationTestSection } from '../features/notifications/AndroidNotificationTestSection'
 import { WeatherConnectionSheet } from '../features/weather/components/WeatherConnectionSheet'
@@ -194,8 +193,6 @@ export function SettingsPage() {
             EZkin은 생활 데이터와 피부 변화를 바탕으로 케어를 돕는 웰니스 서비스이며, 의료적 진단이나 치료를 대신하지 않습니다.
           </Disclaimer>
         </div>
-
-        <DemoScenarioSwitch />
 
         <AndroidNotificationTestSection userId={user.id} />
 

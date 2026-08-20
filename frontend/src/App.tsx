@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './features/auth/AuthRoute'
-import { OnboardingPage } from './features/onboarding/OnboardingPage'
 import { AppShell } from './layouts/AppShell'
 import { HomePage } from './pages/HomePage'
 import { AnalysisReportPage } from './pages/AnalysisReportPage'
@@ -28,9 +27,7 @@ function App() {
           <Route path="login" element={<Navigate to="/" replace />} />
           <Route path="signup" element={<Navigate to="/" replace />} />
 
-          <Route element={<ProtectedRoute onboarding="incomplete" />}>
-            <Route path="onboarding" element={<OnboardingPage />} />
-          </Route>
+          <Route path="onboarding" element={<Navigate to="/home" replace />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="home" element={<HomePage />} />

@@ -37,6 +37,7 @@ const DEMO_SCENARIO_KEY = 'ezkin:demo-scenario'
 const NORMAL_USER_KEY = 'ezkin:normal-user'
 export { NORMAL_USER_ID } from './normalUserIdentityService'
 export const DEMO_LONG_TERM_USER_ID = 'persona_long_term_yeonseo'
+export const SUBMISSION_DEMO_SCENARIO: DemoScenario = 'long_term'
 
 export const demoScenarioOptions: DemoScenarioOption[] = [
   {
@@ -200,28 +201,20 @@ export async function activateDemoScenario(
 }
 
 export async function resolveOnboardingCompletionTarget(
-  currentUser: User,
+  _currentUser: User,
 ): Promise<{ mode: ExperienceMode; user: User }> {
-  const mode = getStoredExperienceMode()
   return {
-    mode,
-    user: mode === 'long_term' ? await activateDemoScenario(mode) : currentUser,
+    mode: SUBMISSION_DEMO_SCENARIO,
+    user: await activateDemoScenario(SUBMISSION_DEMO_SCENARIO),
   }
 }
 
 export async function resolveDemoScenarioEntryUser(
   currentUser: User | null,
 ): Promise<User | null> {
-  const activeMode = getStoredExperienceMode()
-  if (activeMode === 'long_term') {
-    const expectedUserId = getScenarioOption(activeMode).userId
-    const canReuseCurrentUser = currentUser?.id === expectedUserId && currentUser.onboardingCompleted
-    return canReuseCurrentUser ? currentUser : activateDemoScenario(activeMode)
-  }
-
-  if (currentUser && !isPersonaUserId(currentUser.id)) {
-    rememberNormalUser(currentUser)
-    return activateNormalMode()
-  }
-  return activateNormalMode()
+  const expectedUserId = getScenarioOption(SUBMISSION_DEMO_SCENARIO).userId
+  const canReuseCurrentUser = currentUser?.id === expectedUserId && currentUser.onboardingCompleted
+  return canReuseCurrentUser
+    ? currentUser
+    : activateDemoScenario(SUBMISSION_DEMO_SCENARIO)
 }
