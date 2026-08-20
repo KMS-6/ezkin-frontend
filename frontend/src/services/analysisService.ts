@@ -90,6 +90,12 @@ export async function getAnalysisReport(
       const report = await apiRequest<Omit<AnalysisReport, 'period'> & {
         period: { period_days: AnalysisPeriod }
       }>(`/reports/${created.report_id}`)
+      const demoReport = isDemoPersonaUser(userId) ? getMockReport(userId, period) : null
+      if (demoReport && (
+        report.status !== 'completed'
+        || report.observations.length === 0
+        || report.patterns.length === 0
+      )) return demoReport
       return { ...report, period: report.period.period_days }
     } catch (error) {
       if (!isDemoPersonaUser(userId)) throw error

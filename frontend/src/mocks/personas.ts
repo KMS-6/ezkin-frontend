@@ -115,6 +115,22 @@ export const mockPersonas: Record<MockPersonaId, MockPersonaData> = {
         limitations: '생활 데이터와 피부 변화가 함께 나타난 흐름이며, 의학적 인과관계나 진단을 의미하지 않아요.',
         safety_status: 'wellness_only', generated_at: '2026-08-15T06:30:00+09:00',
       },
+      30: {
+        report_id: 'report_c1_30d', status: 'completed', period: 30,
+        summary: '최근 한 달간 수면 저하와 건조한 환경이 겹친 날의 피부 흐름을 정리했어요.',
+        observations: [
+          { text: '최근 30일 중 수면이 개인 평균보다 짧은 날이 반복됐어요.', evidence_ids: ['risk_c1_30d'] },
+          { text: '건조한 환경이 이어진 날에는 피부 당김 기록이 더 자주 나타났어요.', evidence_ids: ['risk_c1_30d'] },
+          { text: '최근 기록에서 HRV가 개인 평균보다 낮은 흐름이 관찰됐어요.', evidence_ids: ['pat_c1_30d'] },
+        ],
+        patterns: [
+          { text: '수면과 HRV가 평소보다 낮은 시기에 홍조와 건조 변화가 함께 관찰됐어요.', evidence_ids: ['pat_c1_30d'] },
+          { text: '습도가 낮은 날에는 보습 중심 루틴을 사용한 기록이 많았어요.', evidence_ids: ['pat_c1_30d'] },
+        ],
+        recommendations: [{ text: '컨디션이 낮고 건조한 날에는 자극적인 단계를 줄이고 보습 중심으로 관리해보세요.', evidence_ids: ['risk_c1_30d', 'pat_c1_30d'] }],
+        limitations: '최근 30일의 생활·환경 데이터와 피부 변화가 함께 나타난 흐름이며, 의학적 인과관계나 진단을 의미하지 않아요.',
+        safety_status: 'wellness_only', generated_at: '2026-08-15T06:35:00+09:00',
+      },
     },
   },
 }
