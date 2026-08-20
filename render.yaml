@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    branch: dev
+    branch: main
     rootDir: backend
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -25,7 +25,7 @@ services:
   - type: web
     name: wize-web
     runtime: static
-    branch: dev
+    branch: main
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
