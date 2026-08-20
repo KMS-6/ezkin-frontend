@@ -45,6 +45,7 @@ const server = await createServer({
   logLevel: 'silent',
   define: {
     'import.meta.env.VITE_ENABLE_DEMO_SCENARIO': JSON.stringify('true'),
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://127.0.0.1:8000/api/v1'),
     'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
     'import.meta.env.VITE_USE_QUICK_CARE_API': JSON.stringify('true'),
     'import.meta.env.VITE_USE_CARE_CONTEXT_API': JSON.stringify('false'),
@@ -660,6 +661,7 @@ try {
     appType: 'custom',
     logLevel: 'silent',
     define: {
+      'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://127.0.0.1:8000/api/v1'),
       'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SKIN_SCAN_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SHELF_API': JSON.stringify('true'),
