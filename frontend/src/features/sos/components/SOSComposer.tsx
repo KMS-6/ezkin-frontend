@@ -37,7 +37,7 @@ export function SOSComposer({ value, disabled = false, onChange, onSend }: SOSCo
         disabled={!canSend}
         onClick={onSend}
         aria-label="메시지 보내기"
-        className="grid size-11 shrink-0 place-items-center rounded-[14px] bg-ez-primary text-white transition hover:bg-ez-primary-dark disabled:cursor-not-allowed disabled:bg-ez-border disabled:text-ez-muted"
+        className="grid size-11 shrink-0 place-items-center rounded-[14px] bg-[#ec4899] text-white transition hover:bg-[#d72f82] disabled:cursor-not-allowed disabled:bg-ez-border disabled:text-ez-muted"
       >
         <Send size={17} aria-hidden="true" />
       </button>

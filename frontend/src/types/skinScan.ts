@@ -23,3 +23,8 @@ export interface SkinScanResult {
   summary: string
   recommendation: string
 }
+
+export interface RecentTriggerAnalysisReference {
+  scanId: string
+  capturedAt: string
+}

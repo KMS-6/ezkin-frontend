@@ -6,41 +6,20 @@ import type {
   SkinType,
   SkinConcern,
 } from '../types/onboarding'
+import { apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
+const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
 const PROFILE_STORAGE_KEY = 'ezkin:onboarding-profiles'
-const TOKEN_KEY = 'ezkin:access-token'
-const DEMO_USER_ID = 'ezkin-demo-user'
 
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
 type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
 
-function createDefaultProfile(userId: string): OnboardingProfile {
-  if (userId === DEMO_USER_ID) {
-    return {
-      userId,
-      currentStep: 5,
-      onboardingVersion: 2,
-      nickname: 'EZkin',
-      birthYear: 1999,
-      gender: 'prefer_not_to_say',
-      healthConcerns: ['irregular_sleep'],
-      skinType: 'combination',
-      selectedConcerns: ['dryness', 'sensitivity'],
-      registeredProductIds: [
-        'calming-toner',
-        'hyaluronic-serum',
-        'ceramide-cream',
-        'retinol-serum',
-        'spf50-sunscreen',
-      ],
-      lifeDataConnected: true,
-      weatherConnected: true,
-      completedAt: '2026-07-12T00:00:00.000Z',
-    }
-  }
-
+function createDefaultProfile(
+  userId: string,
+  _hasSavedProfile: boolean,
+): OnboardingProfile {
   return {
     userId,
     currentStep: 1,
@@ -71,7 +50,7 @@ function resolveStep(savedProfile: StoredOnboardingProfile | undefined, defaultS
 }
 
 function resolveMockProfile(userId: string, savedProfile?: StoredOnboardingProfile): OnboardingProfile {
-  const defaultProfile = createDefaultProfile(userId)
+  const defaultProfile = createDefaultProfile(userId, Boolean(savedProfile))
   const resolved: OnboardingProfile = {
     ...defaultProfile,
     ...savedProfile,
@@ -93,25 +72,7 @@ function resolveMockProfile(userId: string, savedProfile?: StoredOnboardingProfi
       : defaultProfile.registeredProductIds,
   }
 
-  if (userId !== DEMO_USER_ID) return resolved
-
-  return {
-    ...resolved,
-    currentStep: 5,
-    selectedConcerns: resolved.selectedConcerns.length > 0
-      ? resolved.selectedConcerns
-      : defaultProfile.selectedConcerns,
-    registeredProductIds: resolved.registeredProductIds.length > 0
-      ? resolved.registeredProductIds
-      : defaultProfile.registeredProductIds,
-    lifeDataConnected: savedProfile?.completedAt
-      ? resolved.lifeDataConnected
-      : defaultProfile.lifeDataConnected,
-    weatherConnected: savedProfile?.completedAt
-      ? resolved.weatherConnected
-      : defaultProfile.weatherConnected,
-    completedAt: savedProfile?.completedAt ?? defaultProfile.completedAt,
-  }
+  return resolved
 }
 
 function readMockProfiles(): Record<string, StoredOnboardingProfile> {
@@ -136,39 +97,12 @@ function updateMockProfile(userId: string, update: ProfileUpdate): OnboardingPro
   return profile
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  })
-
-  if (!response.ok) throw new Error('온보딩 정보를 저장하지 못했어요.')
-  return response.json() as Promise<T>
-}
-
 async function saveProfileUpdate(userId: string, update: ProfileUpdate): Promise<OnboardingProfile> {
-  if (USE_MOCK_API) return Promise.resolve(updateMockProfile(userId, update))
-
-  return request<OnboardingProfile>('/users/me/onboarding', {
-    method: 'PATCH',
-    body: JSON.stringify(update),
-  })
+  return Promise.resolve(updateMockProfile(userId, update))
 }
 
 export async function getOnboardingProfile(userId: string): Promise<OnboardingProfile> {
-  if (USE_MOCK_API) {
-    return Promise.resolve(resolveMockProfile(userId, readMockProfiles()[userId]))
-  }
-
-  return request<OnboardingProfile>('/users/me/onboarding')
+  return Promise.resolve(resolveMockProfile(userId, readMockProfiles()[userId]))
 }
 
 export function saveCurrentStep(userId: string, currentStep: OnboardingStep): Promise<OnboardingProfile> {
@@ -198,12 +132,62 @@ export function saveConnectionSettings(
   userId: string,
   settings: ConnectionSettings,
 ): Promise<OnboardingProfile> {
-  return saveProfileUpdate(userId, settings)
+  return saveProfileUpdate(userId, settings).then(async (profile) => {
+    if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
+      const sync = Promise.all([
+        apiRequest('/consents/apple_health', {
+          method: 'PUT',
+          body: JSON.stringify({ consented: settings.lifeDataConnected }),
+        }, { personaId: userId }),
+        apiRequest('/consents/weather_location', {
+          method: 'PUT',
+          body: JSON.stringify({ consented: settings.weatherConnected }),
+        }, { personaId: userId }),
+      ])
+      if (isDemoPersonaUser(userId)) await sync.catch(() => undefined)
+      else await sync
+    }
+    return profile
+  })
 }
 
-export function completeOnboardingProfile(userId: string): Promise<OnboardingProfile> {
-  return saveProfileUpdate(userId, {
+export async function completeOnboardingProfile(userId: string): Promise<OnboardingProfile> {
+  const profile = await saveProfileUpdate(userId, {
     currentStep: 5,
     completedAt: new Date().toISOString(),
   })
+  if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
+    const concernMap: Partial<Record<SkinConcern, string>> = {
+      breakouts: 'cn_acne',
+      oiliness: 'cn_oily_tzone',
+      dryness: 'cn_dryness',
+    }
+    const sync = apiRequest('/onboarding/profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        skin_concern_ids: profile.selectedConcerns
+          .map((concern) => concernMap[concern])
+          .filter((concern): concern is string => Boolean(concern)),
+        birth_year: profile.birthYear ?? null,
+        menstrual_cycle_tracking: profile.healthConcerns.includes('cycle_related'),
+      }),
+    }, { personaId: userId })
+    if (isDemoPersonaUser(userId)) await sync.catch(() => undefined)
+    else await sync
+  }
+  return profile
+}
+
+export function resetDemoOnboardingProfile(userId: string): Promise<void> {
+  if (!USE_MOCK_API) {
+    return Promise.reject(new Error('Demo 초기화는 Mock 환경에서만 사용할 수 있어요.'))
+  }
+
+  const profiles = readMockProfiles()
+  if (!(userId in profiles)) return Promise.resolve()
+
+  const nextProfiles = { ...profiles }
+  delete nextProfiles[userId]
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(nextProfiles))
+  return Promise.resolve()
 }

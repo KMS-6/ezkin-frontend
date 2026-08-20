@@ -4,13 +4,109 @@ import type {
   SendSOSMessageResponse,
 } from '../types/sos'
 import type { ProductCategory } from '../types/product'
+import type { QuickCareSafetyCheckResponse } from '../types/quickCare'
+import { checkQuickCareSafety } from './quickCareService'
+import { ApiClientError, apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const TOKEN_KEY = 'ezkin:access-token'
+export function isQuickCareApiEnabled(value = import.meta.env.VITE_USE_QUICK_CARE_API): boolean {
+  return value === 'true'
+}
+
+const USE_QUICK_CARE_API = isQuickCareApiEnabled()
+const USE_SOS_API = import.meta.env.VITE_USE_SOS_API === 'true'
+const SOS_SESSION_KEY = 'ezkin:sos-session'
+
+export type SOSServiceErrorCode = 'SAFETY_CHECK_FAILED' | 'GENERAL_RESPONSE_FAILED'
+
+export class SOSServiceError extends Error {
+  readonly code: SOSServiceErrorCode
+
+  constructor(
+    code: SOSServiceErrorCode,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'SOSServiceError'
+    this.code = code
+  }
+}
+
+type SafetyCheck = (message: string) => Promise<QuickCareSafetyCheckResponse>
+type GeneralResponder = (
+  message: string,
+  context: SOSContext,
+) => SendSOSMessageResponse | Promise<SendSOSMessageResponse>
+
+interface SOSFlowDependencies {
+  safetyCheck?: SafetyCheck
+  generalResponder?: GeneralResponder
+}
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function getStoredSessionId(userId: string): string | null {
+  try {
+    const sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+    return typeof sessions[userId] === 'string' ? sessions[userId] : null
+  } catch {
+    return null
+  }
+}
+
+function storeSessionId(userId: string, sessionId: string): void {
+  let sessions: Record<string, unknown> = {}
+  try {
+    sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+  } catch {
+    // 손상된 세션 저장소는 새 세션으로 교체합니다.
+  }
+  localStorage.setItem(SOS_SESSION_KEY, JSON.stringify({ ...sessions, [userId]: sessionId }))
+}
+
+function clearStoredSessionId(userId: string): void {
+  let sessions: Record<string, unknown> = {}
+  try {
+    sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+  } catch {
+    return
+  }
+  delete sessions[userId]
+  localStorage.setItem(SOS_SESSION_KEY, JSON.stringify(sessions))
+}
+
+async function getOrCreateLiveSession(userId: string): Promise<string> {
+  const stored = getStoredSessionId(userId)
+  if (stored) return stored
+  const created = await apiRequest<{ session_id: string }>('/sos/sessions', { method: 'POST' })
+  storeSessionId(userId, created.session_id)
+  return created.session_id
+}
+
+async function createLiveResponse(message: string, context: SOSContext): Promise<SendSOSMessageResponse> {
+  const send = (sessionId: string) => apiRequest<{
+    reply: string
+    expert_referral_suggested: boolean
+  }>(`/sos/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  })
+  let sessionId = await getOrCreateLiveSession(context.userId)
+  let response: Awaited<ReturnType<typeof send>>
+  try {
+    response = await send(sessionId)
+  } catch (error) {
+    if (!(error instanceof ApiClientError) || error.status !== 404) throw error
+    clearStoredSessionId(context.userId)
+    sessionId = await getOrCreateLiveSession(context.userId)
+    response = await send(sessionId)
+  }
+  return {
+    message: response.reply,
+    professionalHelpSuggested: response.expert_referral_suggested,
+  }
 }
 
 function ownedRecommendedProduct(context: SOSContext, category?: ProductCategory): string | null {
@@ -59,35 +155,60 @@ function createMockResponse(message: string, context: SOSContext): SendSOSMessag
   }
 }
 
+export async function resolveSOSMessageWithSafetyGate(
+  request: SendSOSMessageRequest,
+  useQuickCareApi: boolean,
+  dependencies: SOSFlowDependencies = {},
+): Promise<SendSOSMessageResponse> {
+  const message = request.message.trim()
+  if (!message) throw new Error('질문을 입력해주세요.')
+  const generalResponder = dependencies.generalResponder ?? createMockResponse
+
+  if (!useQuickCareApi) return generalResponder(message, request.context)
+
+  let safetyResult: QuickCareSafetyCheckResponse
+  try {
+    safetyResult = await (dependencies.safetyCheck ?? checkQuickCareSafety)(message)
+  } catch {
+    throw new SOSServiceError('SAFETY_CHECK_FAILED', '안전 확인을 완료하지 못했어요.')
+  }
+
+  if (safetyResult.action === 'stop_ai_guidance') {
+    return {
+      message: safetyResult.reply,
+      safetyGateAction: safetyResult.action,
+      professionalHelpSuggested: safetyResult.professional_help_suggested,
+    }
+  }
+
+  const response = await generalResponder(message, request.context)
+  return {
+    ...response,
+    safetyGateAction: safetyResult.action,
+    professionalHelpSuggested: safetyResult.professional_help_suggested,
+  }
+}
+
 /**
- * Backend 2 contract: POST /sos/chat
- * Request = { message, context }, Response = { message, safetyLevel? }
- * Claude 호출과 Safety/추천 로직은 Backend 내부에서만 수행합니다.
+ * Quick Care는 실백엔드 safety gate만 담당합니다.
+ * 일반 SOS 답변은 해당 백엔드가 연결되기 전까지 기존 responder를 유지합니다.
  */
 export async function sendSOSMessage(
   request: SendSOSMessageRequest,
 ): Promise<SendSOSMessageResponse> {
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
+  const useLiveSos = USE_SOS_API && isDemoPersonaUser(request.context.userId)
 
-  if (USE_MOCK_API) {
+  if (!USE_QUICK_CARE_API && !useLiveSos) {
     await wait(850)
-    if (message === '__SOS_MOCK_ERROR__') throw new Error('Mock SOS request failed.')
-    return createMockResponse(message, request.context)
+    if (message === '__SOS_MOCK_ERROR__') {
+      throw new SOSServiceError('GENERAL_RESPONSE_FAILED', 'SOS 답변을 불러오지 못했어요.')
+    }
   }
-
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}/sos/chat`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ ...request, message }),
-  })
-
-  if (!response.ok) throw new Error('SOS 답변을 불러오지 못했어요.')
-  return response.json() as Promise<SendSOSMessageResponse>
+  return resolveSOSMessageWithSafetyGate(
+    { ...request, message },
+    USE_QUICK_CARE_API,
+    useLiveSos ? { generalResponder: createLiveResponse } : {},
+  )
 }

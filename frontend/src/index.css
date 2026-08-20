@@ -4,7 +4,7 @@
 @theme {
   --color-ez-bg: #f8f7fc;
   --color-ez-surface: #ffffff;
-  --color-ez-primary: #6c4ccf;
+  --color-ez-primary: #8b5cf6;
   --color-ez-primary-dark: #4b2e91;
   --color-ez-primary-soft: #eee9ff;
   --color-ez-text: #191525;
@@ -14,6 +14,9 @@
   --color-ez-success: #55b992;
   --color-ez-warning: #f2b054;
   --color-ez-danger: #e96c75;
+  --color-ez-source: #34d399;
+  --color-ez-source-soft: #e3fbf6;
+  --color-ez-sos: #ec4899;
 
   --shadow-card: 0 1px 8px rgba(46, 34, 77, 0.035);
   --shadow-hero: 0 8px 24px rgba(88, 62, 151, 0.065);

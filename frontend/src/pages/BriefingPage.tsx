@@ -9,10 +9,11 @@ import { HeroCard } from '../components/ui/HeroCard'
 import { BriefingFactors } from '../features/briefing/components/BriefingFactors'
 import { BriefingPause, BriefingRoutine } from '../features/briefing/components/BriefingRoutine'
 import { useAuth } from '../features/auth/authContextValue'
-import { getTodayBriefing } from '../services/briefingService'
+import { applyCareContextToBriefing, getTodayBriefing } from '../services/briefingService'
 import { getTodayRoutineForUser } from '../services/productService'
 import type { BriefingData } from '../types/briefing'
 import type { RoutinePeriod, TodayShelfRoutine } from '../types/product'
+import { getCurrentRoutinePeriod } from '../utils/appDateTime'
 
 export function BriefingPage() {
   const { user } = useAuth()
@@ -26,14 +27,16 @@ export function BriefingPage() {
     if (!user) return
     setIsLoading(true)
     setHasError(false)
+    setPeriod(getCurrentRoutinePeriod(user.id))
 
     try {
       const [briefingData, routineData] = await Promise.all([
-        getTodayBriefing(),
+        getTodayBriefing(user.id),
         getTodayRoutineForUser(user.id),
       ])
       setBriefing(briefingData)
       setRoutine(routineData)
+      void applyCareContextToBriefing(briefingData).then(setBriefing)
     } catch {
       setHasError(true)
     } finally {
@@ -69,7 +72,7 @@ export function BriefingPage() {
             </HeroCard>
 
             <div className="mt-7">
-              <BriefingFactors metrics={briefing.metrics} />
+              <BriefingFactors metrics={briefing.contributingFactors ?? briefing.metrics} />
             </div>
 
             <div className="mt-7">

@@ -9,6 +9,7 @@ import { OnboardingStepLayout } from '../components/OnboardingStepLayout'
 
 interface ConnectionStepProps extends ConnectionSettings {
   healthConnectionStatus: HealthPermissionStatus
+  isWeatherConnecting: boolean
   isCompleting: boolean
   onConnectLifeData: () => void
   onToggleWeather: () => void
@@ -19,6 +20,7 @@ export function ConnectionStep({
   lifeDataConnected,
   weatherConnected,
   healthConnectionStatus,
+  isWeatherConnecting,
   isCompleting,
   onConnectLifeData,
   onToggleWeather,
@@ -85,6 +87,7 @@ export function ConnectionStep({
           dataLabel="UV · 습도 · 기온"
           description="오늘 환경에 맞춰 케어를 조정해요."
           connected={weatherConnected}
+          isBusy={isWeatherConnecting}
           onToggle={onToggleWeather}
         />
       </div>

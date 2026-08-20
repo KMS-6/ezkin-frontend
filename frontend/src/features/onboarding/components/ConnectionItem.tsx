@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check, LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../../../utils/cn'
 
@@ -8,6 +8,7 @@ interface ConnectionItemProps {
   dataLabel: string
   description: string
   connected: boolean
+  isBusy?: boolean
   onToggle: () => void
 }
 
@@ -17,6 +18,7 @@ export function ConnectionItem({
   dataLabel,
   description,
   connected,
+  isBusy = false,
   onToggle,
 }: ConnectionItemProps) {
   return (
@@ -37,6 +39,7 @@ export function ConnectionItem({
       <button
         type="button"
         onClick={onToggle}
+        disabled={isBusy}
         className={cn(
           'mt-3 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl text-[12px] font-semibold transition',
           connected
@@ -45,7 +48,9 @@ export function ConnectionItem({
         )}
         aria-pressed={connected}
       >
-        {connected && <Check size={14} strokeWidth={2.8} aria-hidden="true" />}
+        {isBusy
+          ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" />
+          : connected && <Check size={14} strokeWidth={2.8} aria-hidden="true" />}
         {connected ? '연결됐어요' : '연결하기'}
       </button>
     </div>

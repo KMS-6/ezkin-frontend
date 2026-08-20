@@ -1,19 +1,51 @@
-import { Sparkles } from 'lucide-react'
+import symbolSrc from '../assets/brand/ezkin-symbol.png'
+import wordmarkSrc from '../assets/brand/ezkin-wordmark.png'
+import { cn } from '../utils/cn'
 
 interface EZkinLogoProps {
   compact?: boolean
+  size?: 'small' | 'medium' | 'large'
+  stacked?: boolean
 }
 
-export function EZkinLogo({ compact = false }: EZkinLogoProps) {
+const symbolSize = {
+  small: 'size-7 rounded-[9px]',
+  medium: 'size-8 rounded-[10px]',
+  large: 'size-24 rounded-[24px]',
+}
+
+const wordmarkSize = {
+  small: 'h-8 w-16',
+  medium: 'h-9 w-[74px]',
+  large: 'h-16 w-32',
+}
+
+export function EZkinLogo({
+  compact = false,
+  size = 'medium',
+  stacked = false,
+}: EZkinLogoProps) {
   return (
-    <div className="flex items-center gap-2" aria-label="EZkin">
-      <span className="grid size-8 place-items-center rounded-xl bg-ez-primary text-white shadow-[0_6px_16px_rgba(108,76,207,0.22)]">
-        <Sparkles size={16} strokeWidth={2.2} aria-hidden="true" />
-      </span>
+    <div
+      className={cn(
+        'flex shrink-0 items-center',
+        stacked ? 'flex-col gap-0' : 'gap-1.5',
+      )}
+      aria-label="EZkin"
+    >
+      <img
+        src={symbolSrc}
+        alt=""
+        className={cn('shrink-0 object-contain', symbolSize[size])}
+        aria-hidden="true"
+      />
       {!compact && (
-        <span className="text-[21px] font-extrabold tracking-[-0.06em] text-ez-text">
-          EZ<span className="text-ez-primary">kin</span>
-        </span>
+        <img
+          src={wordmarkSrc}
+          alt=""
+          className={cn('shrink-0 object-contain', wordmarkSize[size])}
+          aria-hidden="true"
+        />
       )}
     </div>
   )

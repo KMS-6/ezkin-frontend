@@ -1,15 +1,20 @@
+import type { DietChoice } from './androidNotification'
+import type { CareContextPreviewResponse } from './careContext'
+
 export type BadgeTone = 'primary' | 'success' | 'warning' | 'neutral'
 
 export interface WeatherSummary {
-  temperature: number
-  humidity: number
+  temperature?: number
+  humidity?: number
+  uvIndex?: number
 }
 
 export interface BriefingMetric {
   id: string
   label: string
   value: string
-  icon: 'sleep' | 'humidity' | 'uv'
+  icon: 'sleep' | 'hrv' | 'humidity' | 'uv'
+  source: 'health' | 'environment'
   description: string
 }
 
@@ -35,9 +40,9 @@ export interface BriefingData {
   summary: string
   careTip: string
   metrics: BriefingMetric[]
+  contributingFactors?: BriefingMetric[]
   syncedSources: string[]
   syncedCount: number
   dietChoice?: DietChoice
+  careContext?: CareContextPreviewResponse
 }
-
-export type DietChoice = 'usual' | 'spicy'

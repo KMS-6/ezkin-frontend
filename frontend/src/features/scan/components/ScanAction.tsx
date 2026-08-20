@@ -12,7 +12,7 @@ export function ScanAction({
   onStart,
   disabled = false,
   label = '3초 스캔 시작',
-  status = '현재 데모에서는 촬영 사진을 서버에 저장하지 않아요.',
+  status = '촬영 사진은 피부 분석을 위해 서버로 전송돼요.',
 }: ScanActionProps) {
   return (
     <>

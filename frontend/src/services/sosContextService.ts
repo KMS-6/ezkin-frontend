@@ -7,7 +7,7 @@ import { getTodayProductRecommendations } from './productService'
 export async function getSOSContext(userId: string): Promise<SOSContext> {
   const [profile, briefing, lifeLog, productRecommendations] = await Promise.all([
     getOnboardingProfile(userId),
-    getTodayBriefing(),
+    getTodayBriefing(userId),
     getTodayLifeLog(userId),
     getTodayProductRecommendations(userId),
   ])

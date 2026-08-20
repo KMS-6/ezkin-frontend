@@ -25,10 +25,10 @@ export function SOSQuickQuestions({ disabled = false, onSelect }: SOSQuickQuesti
             type="button"
             disabled={disabled}
             onClick={() => onSelect(question)}
-            className="flex min-h-12 items-center justify-between gap-3 rounded-[14px] border border-ez-border bg-white px-4 py-3 text-left text-[13px] font-medium text-ez-text shadow-card transition hover:border-ez-primary/25 hover:bg-ez-primary-soft/35 disabled:cursor-not-allowed disabled:opacity-55"
+            className="flex min-h-12 items-center justify-between gap-3 rounded-[14px] border border-ez-border bg-white px-4 py-3 text-left text-[13px] font-medium text-ez-text shadow-card transition hover:border-[#f6b8d6] hover:bg-[#fff7fb] disabled:cursor-not-allowed disabled:opacity-55"
           >
             <span>{question}</span>
-            <ArrowUpRight size={15} className="shrink-0 text-ez-primary" aria-hidden="true" />
+            <ArrowUpRight size={15} className="shrink-0 text-[#ec4899]" aria-hidden="true" />
           </button>
         ))}
       </div>

@@ -1,12 +1,14 @@
-import { additionalEnvironmentMock, additionalLifestyleMock } from '../mocks/lifeLog'
-import type { DietChoice } from '../types/briefing'
 import type {
   LifeLogConnectionStatus,
   LifeLogEntry,
   TodayLifeLog,
 } from '../types/lifeLog'
-import { getSavedDietChoice, getTodayBriefing } from './briefingService'
+import { getTodayBriefing } from './briefingService'
 import { getOnboardingProfile } from './onboardingService'
+import { getTodayQuickInput } from './quickInputService'
+import type { WaterChoice } from '../types/androidNotification'
+import { getMockPersona } from '../mocks/personas'
+import { formatDietChoice } from '../utils/dietChoice'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -20,8 +22,10 @@ function automaticEntry(entry: Omit<LifeLogEntry, 'source' | 'sourceLabel'>): Li
   }
 }
 
-function dietLabel(choice: DietChoice): string {
-  return choice === 'spicy' ? '조금 자극적' : '평소처럼'
+function waterLabel(choice: WaterChoice): string {
+  if (choice === 'under_3') return '3잔 미만'
+  if (choice === '3_to_5') return '3~5잔'
+  return '5잔 이상'
 }
 
 async function request<T>(path: string): Promise<T> {
@@ -47,75 +51,118 @@ export async function getConnectionStatus(userId: string): Promise<LifeLogConnec
 }
 
 export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry[]> {
-  const choice = getSavedDietChoice(userId)
-  if (!choice) return []
+  const quickInput = getTodayQuickInput(userId)
+  const dietChoice = quickInput?.dietChoice
+  const waterChoice = quickInput?.waterChoice
 
-  return [{
-    id: 'diet',
-    type: 'diet',
-    label: '오늘 식단',
-    value: dietLabel(choice),
-    description: '이미 오늘 케어에 반영했어요.',
-    source: 'manual',
-    sourceLabel: '직접 알려줌',
-  }]
+  return [
+    ...(waterChoice ? [{
+      id: 'water',
+      type: 'water' as const,
+      label: '오늘 물',
+      value: waterLabel(waterChoice),
+      description: '오늘 알려준 내용이에요.',
+      source: 'manual' as const,
+      sourceLabel: '직접 알려줌',
+    }] : []),
+    ...(dietChoice ? [{
+      id: 'diet',
+      type: 'diet' as const,
+      label: '오늘 식단',
+      value: formatDietChoice(dietChoice),
+      description: '이미 오늘 케어에 반영했어요.',
+      source: 'manual' as const,
+      sourceLabel: '직접 알려줌',
+    }] : []),
+  ]
 }
 
 export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
   if (!USE_MOCK_API) return request<TodayLifeLog>('/life-logs/today')
 
   const [briefing, connections, manualEntries] = await Promise.all([
-    getTodayBriefing(),
+    getTodayBriefing(userId),
     getConnectionStatus(userId),
     getTodayManualInputs(userId),
   ])
+  const persona = getMockPersona(userId)
 
   const sleep = briefing.metrics.find((metric) => metric.id === 'sleep')
-  const humidity = briefing.metrics.find((metric) => metric.id === 'humidity')
-  const uv = briefing.metrics.find((metric) => metric.id === 'uv')
 
   const lifestyleEntries = connections.lifeDataConnected
+    ? persona?.current_health
+      ? [
+          ...(persona.current_health.sleep_hours !== undefined ? [automaticEntry({
+            id: 'sleep',
+            type: 'sleep',
+            label: '수면',
+            value: String(persona.current_health.sleep_hours),
+            unit: '시간',
+            ...(persona.health_baseline?.sleep_hours !== undefined
+              ? { description: `평소 ${persona.health_baseline.sleep_hours}시간` }
+              : {}),
+          })] : []),
+          ...(persona.current_health.hrv_ms !== undefined ? [automaticEntry({
+            id: 'hrv',
+            type: 'hrv',
+            label: 'HRV',
+            value: String(persona.current_health.hrv_ms),
+            unit: 'ms',
+            ...(persona.health_baseline?.hrv_ms !== undefined
+              ? { description: '14일 평균보다 약 35% 낮음' }
+              : {}),
+          })] : []),
+          ...(persona.current_health.active_energy_kcal !== undefined ? [automaticEntry({
+            id: 'active-energy',
+            type: 'active_energy_kcal',
+            label: '활동',
+            value: String(persona.current_health.active_energy_kcal),
+            unit: 'kcal',
+          })] : []),
+        ]
+      : []
+    : []
+
+  const fallbackLifestyleEntries = connections.lifeDataConnected && !persona
     ? [
         ...(sleep ? [automaticEntry({
           id: sleep.id,
           type: 'sleep',
           label: sleep.label,
           value: sleep.value,
-          description: sleep.description,
         })] : []),
-        ...additionalLifestyleMock.map(automaticEntry),
       ]
     : []
+  const visibleLifestyleEntries = persona ? lifestyleEntries : fallbackLifestyleEntries
 
   const environmentEntries = connections.weatherConnected
     ? [
-        automaticEntry({
+        ...(briefing.weather.temperature !== undefined ? [automaticEntry({
           id: 'temperature',
           type: 'temperature',
           label: '기온',
           value: String(briefing.weather.temperature),
           unit: '°C',
           description: '현재 위치의 오늘 기온',
-        }),
-        ...(humidity ? [automaticEntry({
-          id: humidity.id,
+        })] : []),
+        ...(briefing.weather.humidity !== undefined ? [automaticEntry({
+          id: 'humidity',
           type: 'humidity',
-          label: humidity.label,
-          value: humidity.value,
-          description: humidity.description,
+          label: '습도',
+          value: `${briefing.weather.humidity}%`,
+          description: `현재 위치의 습도 ${briefing.weather.humidity}%`,
         })] : []),
-        ...(uv ? [automaticEntry({
-          id: uv.id,
+        ...(briefing.weather.uvIndex !== undefined ? [automaticEntry({
+          id: 'uv',
           type: 'uv',
-          label: uv.label,
-          value: uv.value,
-          description: uv.description,
+          label: 'UV',
+          value: String(briefing.weather.uvIndex),
+          description: `현재 위치의 UV 지수 ${briefing.weather.uvIndex}`,
         })] : []),
-        ...additionalEnvironmentMock.map(automaticEntry),
       ]
     : []
 
-  const visibleAutomaticCount = lifestyleEntries.length + environmentEntries.length
+  const visibleAutomaticCount = visibleLifestyleEntries.length + environmentEntries.length
   const automaticCount = connections.lifeDataConnected && connections.weatherConnected
     ? briefing.syncedCount
     : visibleAutomaticCount
@@ -124,8 +171,11 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
     dateLabel: briefing.dateLabel,
     automaticCount,
     connections,
-    lifestyleEntries,
+    lifestyleEntries: visibleLifestyleEntries,
     environmentEntries,
     manualEntries,
+    healthBaselineStatus: connections.lifeDataConnected && visibleLifestyleEntries.length > 0
+      ? persona?.baseline_established ? 'established' : 'building'
+      : undefined,
   }
 }

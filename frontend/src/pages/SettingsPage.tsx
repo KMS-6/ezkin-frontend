@@ -7,41 +7,49 @@ import {
   ChevronRight,
   CloudSun,
   Droplets,
-  LogOut,
   Package,
   RefreshCw,
   Sparkles,
-  UserRound,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { PageContainer } from '../components/PageContainer'
-import { SecondaryButton } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Disclaimer } from '../components/ui/Disclaimer'
 import { useAuth } from '../features/auth/authContextValue'
+import { DemoScenarioSwitch } from '../features/demo/DemoScenarioSwitch'
 import { HealthConnectionSheet } from '../features/health/components/HealthConnectionSheet'
+import { AndroidNotificationTestSection } from '../features/notifications/AndroidNotificationTestSection'
+import { WeatherConnectionSheet } from '../features/weather/components/WeatherConnectionSheet'
 import { concernOptions } from '../mocks/onboarding'
 import {
   connectHealthData,
   disconnectHealthData,
   getHealthConnection,
 } from '../services/healthConnectionService'
-import { getOnboardingProfile } from '../services/onboardingService'
+import {
+  connectWeatherData,
+  disconnectWeatherData,
+  reconcileWeatherConnectionPermission,
+} from '../services/weatherConnectionService'
 import type { HealthConnection } from '../types/healthConnection'
 import type { OnboardingProfile } from '../types/onboarding'
+import { getAvailableHealthMetricLabels } from '../utils/healthMetrics'
 
 export function SettingsPage() {
+  const { user } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
   const [profile, setProfile] = useState<OnboardingProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [healthConnection, setHealthConnection] = useState<HealthConnection | null>(null)
   const [isHealthSheetOpen, setIsHealthSheetOpen] = useState(false)
   const [isUpdatingHealth, setIsUpdatingHealth] = useState(false)
   const [healthError, setHealthError] = useState<string | null>(null)
+  const [isWeatherSheetOpen, setIsWeatherSheetOpen] = useState(false)
+  const [isUpdatingWeather, setIsUpdatingWeather] = useState(false)
+  const [weatherError, setWeatherError] = useState<string | null>(null)
 
   const loadProfile = useCallback(async () => {
     if (!user) return
@@ -50,7 +58,7 @@ export function SettingsPage() {
 
     try {
       const [nextProfile, nextHealthConnection] = await Promise.all([
-        getOnboardingProfile(user.id),
+        reconcileWeatherConnectionPermission(user.id),
         getHealthConnection(user.id),
       ])
       setProfile(nextProfile)
@@ -66,16 +74,14 @@ export function SettingsPage() {
     void loadProfile()
   }, [loadProfile])
 
-  const handleLogout = async () => {
-    if (isLoggingOut) return
-    setIsLoggingOut(true)
-    try {
-      await logout()
-      navigate('/login', { replace: true })
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
+  useEffect(() => {
+    const shouldOpenHealthConnection = (location.state as { openHealthConnection?: boolean } | null)?.openHealthConnection
+    if (!shouldOpenHealthConnection || !healthConnection) return
+
+    setHealthError(null)
+    setIsHealthSheetOpen(true)
+    navigate('/settings', { replace: true, state: null })
+  }, [healthConnection, location.state, navigate])
 
   const handleHealthConnect = async () => {
     if (!user || isUpdatingHealth) return
@@ -112,25 +118,50 @@ export function SettingsPage() {
     }
   }
 
+  const handleWeatherConnect = async () => {
+    if (!user || isUpdatingWeather) return
+    setIsUpdatingWeather(true)
+    setWeatherError(null)
+
+    try {
+      const result = await connectWeatherData(user.id)
+      setProfile(result.profile)
+      if (result.status === 'denied') {
+        setWeatherError('위치 권한이 허용되지 않았어요. 설정에서 허용한 뒤 다시 시도해주세요.')
+      } else if (result.status === 'unavailable') {
+        setWeatherError('이 기기에서는 현재 위치를 사용할 수 없어요.')
+      } else {
+        setIsWeatherSheetOpen(false)
+      }
+    } catch {
+      setWeatherError('날씨 데이터를 연결하지 못했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsUpdatingWeather(false)
+    }
+  }
+
+  const handleWeatherDisconnect = async () => {
+    if (!user || isUpdatingWeather) return
+    setIsUpdatingWeather(true)
+    setWeatherError(null)
+
+    try {
+      const nextProfile = await disconnectWeatherData(user.id)
+      setProfile(nextProfile)
+      setIsWeatherSheetOpen(false)
+    } catch {
+      setWeatherError('날씨 데이터 연결을 끊지 못했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsUpdatingWeather(false)
+    }
+  }
+
   if (!user) return null
 
   return (
     <>
       <AppHeader title="설정" backTo="/home" />
       <PageContainer className="pt-3">
-        <section>
-          <h1 className="text-[19px] font-bold tracking-[-0.025em] text-ez-text">내 계정</h1>
-          <Card className="mt-3 flex items-center gap-3 p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-ez-primary-soft text-ez-primary">
-              <UserRound size={19} aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-medium text-ez-muted">로그인 계정</p>
-              <p className="mt-0.5 truncate text-[14px] font-semibold text-ez-text">{user.email}</p>
-            </div>
-          </Card>
-        </section>
-
         {isLoading ? (
           <SettingsSkeleton />
         ) : hasError || !profile ? (
@@ -146,9 +177,14 @@ export function SettingsPage() {
         ) : (
           <ProfileSettings
             profile={profile}
+            healthConnection={healthConnection}
             onOpenHealthConnection={() => {
               setHealthError(null)
               setIsHealthSheetOpen(true)
+            }}
+            onOpenWeatherConnection={() => {
+              setWeatherError(null)
+              setIsWeatherSheetOpen(true)
             }}
           />
         )}
@@ -159,16 +195,10 @@ export function SettingsPage() {
           </Disclaimer>
         </div>
 
-        <SecondaryButton
-          type="button"
-          fullWidth
-          className="mt-5 text-ez-danger"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          icon={<LogOut size={17} aria-hidden="true" />}
-        >
-          {isLoggingOut ? '로그아웃 중' : '로그아웃'}
-        </SecondaryButton>
+        <DemoScenarioSwitch userId={user.id} />
+
+        <AndroidNotificationTestSection userId={user.id} />
+
       </PageContainer>
 
       {isHealthSheetOpen && healthConnection && (
@@ -181,17 +211,35 @@ export function SettingsPage() {
           onDisconnect={() => void handleHealthDisconnect()}
         />
       )}
+
+      {isWeatherSheetOpen && profile && (
+        <WeatherConnectionSheet
+          connected={profile.weatherConnected}
+          isBusy={isUpdatingWeather}
+          error={weatherError}
+          onClose={() => setIsWeatherSheetOpen(false)}
+          onConnect={() => void handleWeatherConnect()}
+          onDisconnect={() => void handleWeatherDisconnect()}
+        />
+      )}
     </>
   )
 }
 
 function ProfileSettings({
   profile,
+  healthConnection,
   onOpenHealthConnection,
+  onOpenWeatherConnection,
 }: {
   profile: OnboardingProfile
+  healthConnection: HealthConnection | null
   onOpenHealthConnection: () => void
+  onOpenWeatherConnection: () => void
 }) {
+  const connectedHealthMetrics = healthConnection
+    ? getAvailableHealthMetricLabels(healthConnection.availableMetrics)
+    : []
   const concernLabels = concernOptions
     .filter((option) => profile.selectedConcerns.includes(option.id))
     .map((option) => option.label)
@@ -209,7 +257,7 @@ function ProfileSettings({
 
   return (
     <>
-      <section className="mt-7">
+      <section>
         <h2 className="text-[16px] font-bold text-ez-text">내 피부</h2>
         <Card className="mt-3 overflow-hidden">
           <div className="flex items-start gap-3 px-4 py-3.5">
@@ -254,8 +302,10 @@ function ProfileSettings({
         <Card className="mt-3 overflow-hidden">
           <ConnectionStatusRow
             icon={<Activity size={17} aria-hidden="true" />}
-            title="생활 데이터"
-            description={profile.lifeDataConnected ? '수면 · 활동 · HRV' : '연결하면 매일 입력하지 않아도 돼요'}
+            title="워치"
+            description={profile.lifeDataConnected
+              ? connectedHealthMetrics.join(' · ') || '연결됨 · 가져온 데이터 없음'
+              : '연결하면 지원되는 건강 데이터를 함께 볼 수 있어요'}
             connected={profile.lifeDataConnected}
             onClick={onOpenHealthConnection}
           />
@@ -264,6 +314,7 @@ function ProfileSettings({
             title="날씨 데이터"
             description="기온 · 습도 · UV"
             connected={profile.weatherConnected}
+            onClick={onOpenWeatherConnection}
           />
         </Card>
       </section>
@@ -293,9 +344,9 @@ function ConnectionStatusRow({
         <p className="text-[13px] font-semibold text-ez-text">{title}</p>
         <p className="mt-0.5 text-[11px] font-normal text-ez-muted">{description}</p>
       </div>
-      <span className={connected ? 'inline-flex items-center gap-1 text-[11px] font-semibold text-ez-success' : 'text-[11px] font-medium text-ez-muted'}>
+      <span className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] ${connected ? 'font-semibold text-ez-success' : 'font-medium text-ez-muted'}`}>
         {connected && <Check size={12} strokeWidth={2.5} aria-hidden="true" />}
-        {connected ? '연결됨' : '연결 안 함'}
+        {connected ? '연결됨' : '연결하기'}
         {onClick && <ChevronRight size={14} aria-hidden="true" />}
       </span>
     </>
@@ -314,7 +365,7 @@ function ConnectionStatusRow({
 
 function SettingsSkeleton() {
   return (
-    <div className="mt-7 animate-pulse" aria-label="내 설정 불러오는 중">
+    <div className="animate-pulse" aria-label="내 설정 불러오는 중">
       <div className="h-5 w-24 rounded bg-[#e8e4ef]" />
       <div className="mt-3 h-32 rounded-[20px] bg-[#efecf4]" />
       <div className="mt-7 h-5 w-24 rounded bg-[#e8e4ef]" />

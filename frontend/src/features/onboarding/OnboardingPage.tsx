@@ -4,13 +4,16 @@ import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
 import { addMyProducts } from '../../services/productService'
 import { connectHealthData } from '../../services/healthConnectionService'
+import {
+  connectWeatherData,
+  disconnectWeatherData,
+  reconcileWeatherConnectionPermission,
+} from '../../services/weatherConnectionService'
 import { useAuth } from '../auth/authContextValue'
 import {
   completeOnboardingProfile,
-  getOnboardingProfile,
   saveBasicProfile,
   saveConcerns,
-  saveConnectionSettings,
   saveCurrentStep,
   saveSkinType,
 } from '../../services/onboardingService'
@@ -28,6 +31,7 @@ import { ProfileStep } from './steps/ProfileStep'
 import { ShelfStep } from './steps/ShelfStep'
 import { SkinStep } from './steps/SkinStep'
 import { WelcomeStep } from './steps/WelcomeStep'
+import { ANDROID_HARDWARE_BACK_EVENT } from '../navigation/androidBackEvent'
 
 export function OnboardingPage() {
   const navigate = useNavigate()
@@ -38,12 +42,13 @@ export function OnboardingPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
   const [healthConnectionStatus, setHealthConnectionStatus] = useState<HealthPermissionStatus>('not_requested')
+  const [isUpdatingWeather, setIsUpdatingWeather] = useState(false)
 
   useEffect(() => {
     if (!user) return
     let isActive = true
 
-    void getOnboardingProfile(user.id)
+    void reconcileWeatherConnectionPermission(user.id)
       .then((savedProfile) => {
         if (isActive) {
           setProfile(savedProfile)
@@ -58,6 +63,23 @@ export function OnboardingPage() {
       isActive = false
     }
   }, [user])
+
+  useEffect(() => {
+    const handleAndroidHardwareBack = (event: Event) => {
+      if (!user || !profile || profile.currentStep <= 1) return
+
+      event.preventDefault()
+      const previousStep = (profile.currentStep - 1) as OnboardingStep
+      setProfile((current) => current ? { ...current, currentStep: previousStep } : current)
+      setSaveMessage(null)
+      void saveCurrentStep(user.id, previousStep).catch(() => {
+        setSaveMessage('이전 단계로 이동하지 못했어요. 잠시 후 다시 시도해주세요.')
+      })
+    }
+
+    window.addEventListener(ANDROID_HARDWARE_BACK_EVENT, handleAndroidHardwareBack)
+    return () => window.removeEventListener(ANDROID_HARDWARE_BACK_EVENT, handleAndroidHardwareBack)
+  }, [profile, user])
 
   if (!user) return null
   if (loadError) return <OnboardingLoadError message={loadError} />
@@ -117,14 +139,29 @@ export function OnboardingPage() {
     }
   }
 
-  const handleWeatherToggle = () => {
-    const settings = {
-      lifeDataConnected: profile.lifeDataConnected,
-      weatherConnected: !profile.weatherConnected,
-    }
+  const handleWeatherToggle = async () => {
+    if (isUpdatingWeather) return
+    setIsUpdatingWeather(true)
+    setSaveMessage(null)
 
-    setProfile({ ...profile, ...settings })
-    persist(saveConnectionSettings(user.id, settings))
+    try {
+      if (profile.weatherConnected) {
+        setProfile(await disconnectWeatherData(user.id))
+        return
+      }
+
+      const result = await connectWeatherData(user.id)
+      setProfile(result.profile)
+      if (result.status === 'denied') {
+        setSaveMessage('위치 권한을 허용하지 않아도 괜찮아요. 날씨 데이터 없이 계속할 수 있어요.')
+      } else if (result.status === 'unavailable') {
+        setSaveMessage('지금은 위치를 사용할 수 없어요. 날씨 데이터 없이 계속할 수 있어요.')
+      }
+    } catch {
+      setSaveMessage('날씨 데이터를 연결하지 못했어요. 나중에 다시 시도할 수 있어요.')
+    } finally {
+      setIsUpdatingWeather(false)
+    }
   }
 
   const handleLifeDataConnect = async () => {
@@ -218,10 +255,11 @@ export function OnboardingPage() {
           <ConnectionStep
             lifeDataConnected={profile.lifeDataConnected}
             weatherConnected={profile.weatherConnected}
+            isWeatherConnecting={isUpdatingWeather}
             healthConnectionStatus={healthConnectionStatus}
             isCompleting={isCompleting}
             onConnectLifeData={() => void handleLifeDataConnect()}
-            onToggleWeather={handleWeatherToggle}
+            onToggleWeather={() => void handleWeatherToggle()}
             onComplete={handleComplete}
           />
         )}
