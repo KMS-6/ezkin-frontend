@@ -12,7 +12,7 @@ WIZE 해커톤 MVP는 Render Blueprint로 다음 세 리소스를 함께 관리�
 ```
 
 저장소 루트의 `render.yaml`이 서비스 이름, 리전, 빌드 방식, 환경변수 연결의
-단일 기준이다. `dev` 브랜치의 CI가 통과한 뒤에만 Render가 자동 배포한다.
+단일 기준이다. `main` 브랜치의 CI가 통과한 뒤에만 Render가 자동 배포한다.
 
 ## 2. 왜 Render를 선택했는가
 
@@ -64,7 +64,7 @@ PostgreSQL 연결을 선언할 수 있다. 배포 설정이 Dashboard에만 남�
 ## 3. 사전 준비
 
 - GitHub 저장소 `KMS-6/Hackathon_WIZE`에 접근 가능한 Render 계정
-- 배포할 변경이 `dev` 브랜치에 병합되어 있을 것
+- 배포할 변경이 `main` 브랜치에 병합되어 있을 것
 - GitHub Actions의 `CI` 워크플로가 성공했을 것
 - 실제 시크릿은 Git이나 문서에 기록하지 않을 것
 
@@ -72,7 +72,7 @@ PostgreSQL 연결을 선언할 수 있다. 배포 설정이 Dashboard에만 남�
 
 1. Render Dashboard에서 **New > Blueprint**를 선택한다.
 2. GitHub 저장소 `KMS-6/Hackathon_WIZE`를 연결한다.
-3. Blueprint branch로 `dev`, 파일로 `render.yaml`을 선택한다.
+3. Blueprint branch로 `main`, 파일로 `render.yaml`을 선택한다.
 4. 생성 화면에서 아래 값을 입력한다.
 
 | 환경변수 | 입력값 |
@@ -112,12 +112,18 @@ Render가 서비스 이름 충돌로 주소에 접미사를 붙였다면 예시 
 
 ```text
 feature branch → Pull Request(dev) → GitHub Actions CI
-                                      ├─ 실패: 병합/배포 중단
-                                      └─ 성공: dev 병합 후 Render 배포
+                                      ├─ 실패: 병합 중단
+                                      └─ 성공: dev 병합
+                                                 │
+                                                 ▼
+                                   Pull Request(main) → GitHub Actions CI
+                                                          ├─ 실패: 병합/배포 중단
+                                                          └─ 성공: main 병합 후 Render 배포
 ```
 
-Render의 `autoDeployTrigger: checksPass` 설정 때문에 연결 브랜치의 GitHub 검사가
-통과해야 배포가 시작된다. `main`에는 직접 push하지 않고 PR을 통해 반영한다.
+Render의 `autoDeployTrigger: checksPass` 설정 때문에 연결 브랜치(`main`)의 GitHub
+검사가 통과해야 배포가 시작된다. `dev`와 `main` 모두 직접 push하지 않고 PR을 통해
+반영한다.
 
 ## 7. 배포 검증
 
