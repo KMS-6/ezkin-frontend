@@ -9,6 +9,8 @@ import { getTodayQuickInput } from './quickInputService'
 import type { WaterChoice } from '../types/androidNotification'
 import { getMockPersona } from '../mocks/personas'
 import { formatDietChoice } from '../utils/dietChoice'
+import { getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
+import { getCurrentWeatherData } from './weatherDataService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -78,16 +80,23 @@ export async function getTodayManualInputs(userId: string): Promise<LifeLogEntry
 }
 
 export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
-  if (!USE_MOCK_API) return request<TodayLifeLog>('/life-logs/today')
+  if (!isDemoPersonaUser(userId) && !USE_MOCK_API) {
+    return request<TodayLifeLog>('/life-logs/today')
+  }
 
-  const [briefing, connections, manualEntries] = await Promise.all([
-    getTodayBriefing(userId),
+  const [connections, manualEntries] = await Promise.all([
     getConnectionStatus(userId),
     getTodayManualInputs(userId),
   ])
   const persona = getMockPersona(userId)
+  const [briefing, currentEnvironment] = await Promise.all([
+    persona ? getTodayBriefing(userId) : Promise.resolve(null),
+    !persona && connections.weatherConnected
+      ? getCurrentWeatherData(userId)
+      : Promise.resolve(undefined),
+  ])
 
-  const sleep = briefing.metrics.find((metric) => metric.id === 'sleep')
+  const sleep = briefing?.metrics.find((metric) => metric.id === 'sleep')
 
   const lifestyleEntries = connections.lifeDataConnected
     ? persona?.current_health
@@ -137,38 +146,38 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
 
   const environmentEntries = connections.weatherConnected
     ? [
-        ...(briefing.weather.temperature !== undefined ? [automaticEntry({
+        ...((briefing?.weather.temperature ?? currentEnvironment?.temperatureC) !== undefined ? [automaticEntry({
           id: 'temperature',
           type: 'temperature',
           label: '기온',
-          value: String(briefing.weather.temperature),
+          value: String(briefing?.weather.temperature ?? currentEnvironment?.temperatureC),
           unit: '°C',
           description: '현재 위치의 오늘 기온',
         })] : []),
-        ...(briefing.weather.humidity !== undefined ? [automaticEntry({
+        ...((briefing?.weather.humidity ?? currentEnvironment?.humidityPercent) !== undefined ? [automaticEntry({
           id: 'humidity',
           type: 'humidity',
           label: '습도',
-          value: `${briefing.weather.humidity}%`,
-          description: `현재 위치의 습도 ${briefing.weather.humidity}%`,
+          value: `${briefing?.weather.humidity ?? currentEnvironment?.humidityPercent}%`,
+          description: `현재 위치의 습도 ${briefing?.weather.humidity ?? currentEnvironment?.humidityPercent}%`,
         })] : []),
-        ...(briefing.weather.uvIndex !== undefined ? [automaticEntry({
+        ...((briefing?.weather.uvIndex ?? currentEnvironment?.uvIndex) !== undefined ? [automaticEntry({
           id: 'uv',
           type: 'uv',
           label: 'UV',
-          value: String(briefing.weather.uvIndex),
-          description: `현재 위치의 UV 지수 ${briefing.weather.uvIndex}`,
+          value: String(briefing?.weather.uvIndex ?? currentEnvironment?.uvIndex),
+          description: `현재 위치의 UV 지수 ${briefing?.weather.uvIndex ?? currentEnvironment?.uvIndex}`,
         })] : []),
       ]
     : []
 
   const visibleAutomaticCount = visibleLifestyleEntries.length + environmentEntries.length
   const automaticCount = connections.lifeDataConnected && connections.weatherConnected
-    ? briefing.syncedCount
+    ? briefing?.syncedCount ?? visibleAutomaticCount
     : visibleAutomaticCount
 
   return {
-    dateLabel: briefing.dateLabel,
+    dateLabel: briefing?.dateLabel ?? getTodayDateLabel(userId),
     automaticCount,
     connections,
     lifestyleEntries: visibleLifestyleEntries,

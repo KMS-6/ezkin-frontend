@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
-import { addMyProducts } from '../../services/productService'
+import { addMyProducts, syncPendingMyProducts } from '../../services/productService'
+import {
+  resolveOnboardingCompletionTarget,
+} from '../../services/demoScenarioService'
+import {
+  ensureNormalBackendIdentity,
+  requiresNormalBackendIdentity,
+} from '../../services/backendIdentityService'
 import { connectHealthData } from '../../services/healthConnectionService'
 import {
   connectWeatherData,
@@ -185,6 +192,17 @@ export function OnboardingPage() {
     setSaveMessage(null)
 
     try {
+      const completionTarget = await resolveOnboardingCompletionTarget(user)
+      if (completionTarget.mode === 'long_term') {
+        await completeOnboarding(completionTarget.user)
+        navigate('/home', { replace: true })
+        return
+      }
+
+      if (requiresNormalBackendIdentity(user.id)) {
+        await ensureNormalBackendIdentity(user, profile.nickname ?? '')
+        await syncPendingMyProducts(user.id, profile.registeredProductIds)
+      }
       await completeOnboardingProfile(user.id)
       await completeOnboarding()
       navigate('/home', { replace: true })

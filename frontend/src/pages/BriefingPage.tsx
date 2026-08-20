@@ -14,9 +14,11 @@ import { getTodayRoutineForUser } from '../services/productService'
 import type { BriefingData } from '../types/briefing'
 import type { RoutinePeriod, TodayShelfRoutine } from '../types/product'
 import { getCurrentRoutinePeriod } from '../utils/appDateTime'
+import { isBriefingAvailableForUser } from '../services/userFeatureAvailability'
 
 export function BriefingPage() {
   const { user } = useAuth()
+  const isBriefingAvailable = isBriefingAvailableForUser(user?.id)
   const [briefing, setBriefing] = useState<BriefingData | null>(null)
   const [routine, setRoutine] = useState<TodayShelfRoutine | null>(null)
   const [period, setPeriod] = useState<RoutinePeriod>('am')
@@ -24,7 +26,10 @@ export function BriefingPage() {
   const [hasError, setHasError] = useState(false)
 
   const loadBriefing = useCallback(async () => {
-    if (!user) return
+    if (!user || !isBriefingAvailable) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setHasError(false)
     setPeriod(getCurrentRoutinePeriod(user.id))
@@ -36,19 +41,34 @@ export function BriefingPage() {
       ])
       setBriefing(briefingData)
       setRoutine(routineData)
-      void applyCareContextToBriefing(briefingData).then(setBriefing)
+      void applyCareContextToBriefing(briefingData, { userId: user.id }).then(setBriefing)
     } catch {
       setHasError(true)
     } finally {
       setIsLoading(false)
     }
-  }, [user])
+  }, [isBriefingAvailable, user])
 
   useEffect(() => {
     void loadBriefing()
   }, [loadBriefing])
 
   if (!user) return null
+  if (!isBriefingAvailable) {
+    return (
+      <>
+        <StickyDetailHeader title="오늘의 브리핑" backTo="/home" />
+        <PageContainer className="pt-3">
+          <Card className="px-6 py-9 text-center">
+            <h1 className="text-[17px] font-semibold text-ez-text">오늘 케어 안내를 준비 중이에요.</h1>
+            <p className="mt-2 text-[13px] leading-6 text-ez-muted">
+              날씨와 내 화장대 정보는 다른 화면에서 계속 확인할 수 있어요.
+            </p>
+          </Card>
+        </PageContainer>
+      </>
+    )
+  }
 
   return (
     <>

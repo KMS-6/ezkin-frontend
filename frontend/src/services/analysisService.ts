@@ -9,6 +9,7 @@ import type {
 import { getRecentTriggerAnalysisReference } from './skinScanService'
 import { apiRequest } from './apiClient'
 import { isDemoPersonaUser } from '../utils/appDateTime'
+import { requireFeatureAvailable } from './userFeatureAvailability'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_ANALYSIS_API = import.meta.env.VITE_USE_ANALYSIS_API === 'true'
@@ -42,6 +43,10 @@ function getMockPattern(userId: string): TriggerAnalysisDetail | null {
   }
 }
 
+function shouldUseLiveAnalysis(userId: string): boolean {
+  return !isDemoPersonaUser(userId) && (USE_ANALYSIS_API || !USE_MOCK_API)
+}
+
 interface BackendEligibility {
   available_days: number
   required_days: number
@@ -58,49 +63,32 @@ async function requestPatternAnalysis(scanId: string): Promise<PatternAnalysis |
 }
 
 export async function getAnalysisEligibility(userId: string): Promise<AnalysisEligibility> {
-  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
-    try {
-      const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
-      const demoEligibility = isDemoPersonaUser(userId) ? getMockEligibility(userId) : null
-      const dataDays = Math.max(response.available_days, demoEligibility?.dataDays ?? 0)
-      const requiredDays = response.required_days
-      return {
-        dataDays,
-        requiredDays,
-        eligible: response.eligible || dataDays >= requiredDays,
-      }
-    } catch (error) {
-      if (!isDemoPersonaUser(userId)) throw error
-      return getMockEligibility(userId)
+  requireFeatureAvailable('analysis', userId)
+  if (shouldUseLiveAnalysis(userId)) {
+    const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
+    return {
+      dataDays: response.available_days,
+      requiredDays: response.required_days,
+      eligible: response.eligible,
     }
   }
-  return Promise.resolve(getMockEligibility(userId))
+  return getMockEligibility(userId)
 }
 
 export async function getAnalysisReport(
   userId: string,
   period: AnalysisPeriod,
 ): Promise<AnalysisReport | null> {
-  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
-    try {
-      const created = await apiRequest<{ report_id: string }>('/reports', {
-        method: 'POST',
-        body: JSON.stringify({ period_days: period, locale: 'ko-KR' }),
-      })
-      const report = await apiRequest<Omit<AnalysisReport, 'period'> & {
-        period: { period_days: AnalysisPeriod }
-      }>(`/reports/${created.report_id}`)
-      const demoReport = isDemoPersonaUser(userId) ? getMockReport(userId, period) : null
-      if (demoReport && (
-        report.status !== 'completed'
-        || report.observations.length === 0
-        || report.patterns.length === 0
-      )) return demoReport
-      return { ...report, period: report.period.period_days }
-    } catch (error) {
-      if (!isDemoPersonaUser(userId)) throw error
-      return getMockReport(userId, period)
-    }
+  requireFeatureAvailable('analysis', userId)
+  if (shouldUseLiveAnalysis(userId)) {
+    const created = await apiRequest<{ report_id: string }>('/reports', {
+      method: 'POST',
+      body: JSON.stringify({ period_days: period, locale: 'ko-KR' }),
+    })
+    const report = await apiRequest<Omit<AnalysisReport, 'period'> & {
+      period: { period_days: AnalysisPeriod }
+    }>(`/reports/${created.report_id}`)
+    return { ...report, period: report.period.period_days }
   }
   return getMockReport(userId, period)
 }
@@ -109,13 +97,9 @@ export async function getPatternAnalysis(
   userId: string,
   scanId: string,
 ): Promise<TriggerAnalysisDetail | null> {
-  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
-    try {
-      return await requestPatternAnalysis(scanId) ?? getMockPattern(userId)
-    } catch (error) {
-      if (!isDemoPersonaUser(userId)) throw error
-      return getMockPattern(userId)
-    }
+  requireFeatureAvailable('analysis', userId)
+  if (shouldUseLiveAnalysis(userId)) {
+    return requestPatternAnalysis(scanId)
   }
   if (!scanId) return null
   const mockPattern = getMockPattern(userId)

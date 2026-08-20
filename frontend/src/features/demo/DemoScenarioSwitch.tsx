@@ -5,19 +5,13 @@ import {
   activateDemoScenario,
   demoScenarioOptions,
   getActiveDemoScenario,
-  isDemoScenarioEnabled,
 } from '../../services/demoScenarioService'
+import { connectWeatherData } from '../../services/weatherConnectionService'
 
-interface DemoScenarioSwitchProps {
-  userId: string
-}
-
-export function DemoScenarioSwitch({ userId }: DemoScenarioSwitchProps) {
+export function DemoScenarioSwitch() {
   const [switchingScenario, setSwitchingScenario] = useState<DemoScenario | 'normal' | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const activeScenario = getActiveDemoScenario(userId)
-
-  if (!isDemoScenarioEnabled()) return null
+  const activeScenario = getActiveDemoScenario()
 
   const handleSwitch = async (scenario: DemoScenario | null) => {
     if (switchingScenario || scenario === activeScenario) return
@@ -26,8 +20,12 @@ export function DemoScenarioSwitch({ userId }: DemoScenarioSwitchProps) {
     setError(null)
 
     try {
-      if (scenario) await activateDemoScenario(scenario)
-      else await activateNormalMode()
+      if (scenario) {
+        const demoUser = await activateDemoScenario(scenario)
+        await connectWeatherData(demoUser.id)
+      } else {
+        await activateNormalMode()
+      }
       window.location.assign('/')
     } catch {
       setError('시나리오를 바꾸지 못했어요.')
@@ -35,50 +33,53 @@ export function DemoScenarioSwitch({ userId }: DemoScenarioSwitchProps) {
     }
   }
 
-  const activeLabel = demoScenarioOptions.find((option) => option.id === activeScenario)?.label ?? '일반 사용자'
+  const longTermOption = demoScenarioOptions[0]
 
   return (
-    <section className="mt-7 border-t border-ez-border pt-6" aria-labelledby="demo-scenario-title">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="demo-scenario-title" className="text-[14px] font-semibold text-ez-text">Demo Scenario</h2>
-        <p className="text-[11px] font-medium text-ez-muted">
-          현재: {activeLabel}
-        </p>
-      </div>
+    <section className="mt-7 border-t border-ez-border pt-6" aria-labelledby="experience-mode-title">
+      <h2 id="experience-mode-title" className="text-[14px] font-semibold text-ez-text">체험 모드</h2>
 
-      <div className="mt-3 grid grid-cols-2 gap-1 rounded-[14px] bg-ez-primary-soft/70 p-1" role="group" aria-label="Demo Scenario 선택">
+      <div className="mt-3 overflow-hidden rounded-[16px] border border-ez-border bg-white" role="radiogroup" aria-label="체험 모드 선택">
         <button
           type="button"
           onClick={() => void handleSwitch(null)}
           disabled={Boolean(switchingScenario) || activeScenario === null}
           aria-pressed={activeScenario === null}
-          className={`min-h-12 rounded-[11px] px-2 text-[11px] font-semibold leading-4 transition ${
+          role="radio"
+          aria-checked={activeScenario === null}
+          className={`w-full px-4 py-3.5 text-left transition ${
             activeScenario === null
-              ? 'bg-white text-ez-primary shadow-[0_1px_5px_rgba(55,39,94,0.06)]'
-              : 'text-ez-muted hover:text-ez-primary'
+              ? 'bg-ez-primary-soft/55'
+              : 'hover:bg-ez-primary-soft/25'
           } disabled:cursor-default`}
         >
-          {switchingScenario === 'normal' ? '전환 중' : '일반 사용자'}
+          <span className={`block text-[13px] font-semibold ${activeScenario === null ? 'text-ez-primary' : 'text-ez-text'}`}>
+            {switchingScenario === 'normal' ? '전환 중' : '일반 사용자'}
+          </span>
+          <span className="mt-1 block text-[11px] font-normal leading-5 text-ez-muted">
+            실제 데이터를 기반으로 EZkin을 사용합니다.
+          </span>
         </button>
-        {demoScenarioOptions.map((option) => {
-          const isActive = option.id === activeScenario
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => void handleSwitch(option.id)}
-              disabled={Boolean(switchingScenario) || isActive}
-              aria-pressed={isActive}
-              className={`min-h-12 rounded-[11px] px-2 text-[11px] font-semibold leading-4 transition ${
-                isActive
-                  ? 'bg-white text-ez-primary shadow-[0_1px_5px_rgba(55,39,94,0.06)]'
-                  : 'text-ez-muted hover:text-ez-primary'
-              } disabled:cursor-default`}
-            >
-              {switchingScenario === option.id ? '전환 중' : option.label}
-            </button>
-          )
-        })}
+        <button
+          type="button"
+          onClick={() => void handleSwitch(longTermOption.id)}
+          disabled={Boolean(switchingScenario) || activeScenario === longTermOption.id}
+          aria-pressed={activeScenario === longTermOption.id}
+          role="radio"
+          aria-checked={activeScenario === longTermOption.id}
+          className={`w-full border-t border-ez-border px-4 py-3.5 text-left transition ${
+            activeScenario === longTermOption.id
+              ? 'bg-ez-primary-soft/55'
+              : 'hover:bg-ez-primary-soft/25'
+          } disabled:cursor-default`}
+        >
+          <span className={`block text-[13px] font-semibold ${activeScenario === longTermOption.id ? 'text-ez-primary' : 'text-ez-text'}`}>
+            {switchingScenario === longTermOption.id ? '전환 중' : longTermOption.label}
+          </span>
+          <span className="mt-1 block text-[11px] font-normal leading-5 text-ez-muted">
+            {longTermOption.description}
+          </span>
+        </button>
       </div>
 
       {error && <p className="mt-2 text-[11px] font-medium text-ez-danger" role="alert">{error}</p>}

@@ -22,6 +22,7 @@ import type {
 } from '../types/analysisReport'
 import type { RecentTriggerAnalysisReference } from '../types/skinScan'
 import { cn } from '../utils/cn'
+import { isAnalysisAvailableForUser } from '../services/userFeatureAvailability'
 
 interface AnalysisState {
   eligibility: AnalysisEligibility
@@ -31,13 +32,17 @@ interface AnalysisState {
 
 export function AnalysisReportPage() {
   const { user } = useAuth()
+  const isAnalysisAvailable = isAnalysisAvailableForUser(user?.id)
   const [period, setPeriod] = useState<AnalysisPeriod>(14)
   const [data, setData] = useState<AnalysisState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
   const loadReport = useCallback(async () => {
-    if (!user) return
+    if (!user || !isAnalysisAvailable) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setHasError(false)
 
@@ -51,13 +56,27 @@ export function AnalysisReportPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [period, user])
+  }, [isAnalysisAvailable, period, user])
 
   useEffect(() => {
     void loadReport()
   }, [loadReport])
 
   if (!user) return null
+  if (!isAnalysisAvailable) {
+    return (
+      <>
+        <AppHeader title="분석" />
+        <PageContainer className="pt-3">
+          <EmptyState
+            icon={<CalendarDays size={22} aria-hidden="true" />}
+            title="분석 기능을 준비 중이에요."
+            description="내 데이터가 연결되면 이곳에서 피부 변화 흐름을 확인할 수 있어요."
+          />
+        </PageContainer>
+      </>
+    )
+  }
 
   return (
     <>

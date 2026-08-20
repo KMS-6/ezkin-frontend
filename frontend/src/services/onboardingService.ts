@@ -13,6 +13,10 @@ const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
 const PROFILE_STORAGE_KEY = 'ezkin:onboarding-profiles'
 
+function shouldSyncOnboarding(userId: string): boolean {
+  return !isDemoPersonaUser(userId) && (USE_ONBOARDING_API || !USE_MOCK_API)
+}
+
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
 type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
 
@@ -133,8 +137,8 @@ export function saveConnectionSettings(
   settings: ConnectionSettings,
 ): Promise<OnboardingProfile> {
   return saveProfileUpdate(userId, settings).then(async (profile) => {
-    if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
-      const sync = Promise.all([
+    if (shouldSyncOnboarding(userId)) {
+      await Promise.all([
         apiRequest('/consents/apple_health', {
           method: 'PUT',
           body: JSON.stringify({ consented: settings.lifeDataConnected }),
@@ -144,8 +148,6 @@ export function saveConnectionSettings(
           body: JSON.stringify({ consented: settings.weatherConnected }),
         }, { personaId: userId }),
       ])
-      if (isDemoPersonaUser(userId)) await sync.catch(() => undefined)
-      else await sync
     }
     return profile
   })
@@ -156,7 +158,7 @@ export async function completeOnboardingProfile(userId: string): Promise<Onboard
     currentStep: 5,
     completedAt: new Date().toISOString(),
   })
-  if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
+  if (shouldSyncOnboarding(userId)) {
     const concernMap: Partial<Record<SkinConcern, string>> = {
       breakouts: 'cn_acne',
       oiliness: 'cn_oily_tzone',

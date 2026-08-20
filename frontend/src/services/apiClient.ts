@@ -1,5 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
-const TOKEN_KEY = 'ezkin:access-token'
+export const ACCESS_TOKEN_STORAGE_KEY = 'ezkin:access-token'
 const SESSION_KEY = 'ezkin:auth-session'
 
 interface StoredSession {
@@ -7,9 +7,7 @@ interface StoredSession {
 }
 
 const BACKEND_PERSONA_IDS: Readonly<Record<string, string>> = {
-  persona_a1_seoyeon: 'persona_001',
-  persona_b1_eunji: 'persona_002',
-  persona_c1_minjun: 'persona_003',
+  persona_long_term_yeonseo: 'persona_003',
 }
 
 function getActivePersonaId(): string | null {
@@ -40,6 +38,7 @@ export interface ApiClientOptions {
   baseUrl?: string
   fetcher?: typeof fetch
   personaId?: string
+  includePersona?: boolean
 }
 
 export async function apiRequest<T>(
@@ -54,12 +53,14 @@ export async function apiRequest<T>(
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const token = localStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
   const explicitPersonaId = options.personaId
-  const personaId = explicitPersonaId
-    ? BACKEND_PERSONA_IDS[explicitPersonaId] ?? explicitPersonaId
-    : getActivePersonaId()
+  const personaId = options.includePersona === false
+    ? null
+    : explicitPersonaId
+      ? BACKEND_PERSONA_IDS[explicitPersonaId] ?? explicitPersonaId
+      : getActivePersonaId()
   if (personaId && !headers.has('X-Mock-Persona-Id')) {
     headers.set('X-Mock-Persona-Id', personaId)
   }

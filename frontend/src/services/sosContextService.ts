@@ -3,11 +3,13 @@ import { getTodayBriefing } from './briefingService'
 import { getTodayLifeLog } from './lifeLogService'
 import { getOnboardingProfile } from './onboardingService'
 import { getTodayProductRecommendations } from './productService'
+import { isBriefingAvailableForUser } from './userFeatureAvailability'
+import { getMockPersona } from '../mocks/personas'
 
 export async function getSOSContext(userId: string): Promise<SOSContext> {
   const [profile, briefing, lifeLog, productRecommendations] = await Promise.all([
     getOnboardingProfile(userId),
-    getTodayBriefing(userId),
+    isBriefingAvailableForUser(userId) ? getTodayBriefing(userId) : Promise.resolve(null),
     getTodayLifeLog(userId),
     getTodayProductRecommendations(userId),
   ])
@@ -17,6 +19,7 @@ export async function getSOSContext(userId: string): Promise<SOSContext> {
   const uv = lifeLog.environmentEntries.find((entry) => entry.type === 'uv')
   const temperature = lifeLog.environmentEntries.find((entry) => entry.type === 'temperature')
   const diet = lifeLog.manualEntries.find((entry) => entry.type === 'diet')
+  const persona = getMockPersona(userId)
 
   return {
     userId,
@@ -29,11 +32,11 @@ export async function getSOSContext(userId: string): Promise<SOSContext> {
       healthConcerns: profile.healthConcerns,
     },
     today: {
-      skinStatus: `${briefing.skinHeadline} · ${briefing.riskLabel}`,
+      ...(briefing ? { skinStatus: `${briefing.skinHeadline} · ${briefing.riskLabel}` } : {}),
       sleep: sleep?.value,
       humidity: humidity?.value,
       uv: uv?.value,
-      temperature: temperature ? Number(temperature.value) : briefing.weather.temperature,
+      temperature: temperature ? Number(temperature.value) : briefing?.weather.temperature,
       foodChoice: diet?.value,
     },
     products: productRecommendations.map(({ product, recommendation }) => ({
@@ -42,6 +45,10 @@ export async function getSOSContext(userId: string): Promise<SOSContext> {
       category: product.category,
       recommendationStatus: recommendation.status,
     })),
-    // latestScan은 Backend 1의 사용자별 Scan History API가 연결되면 이 Service에서 조합합니다.
+    ...(persona?.pattern_analysis?.observed_pattern?.text ? {
+      latestScan: {
+        summary: persona.pattern_analysis.observed_pattern.text,
+      },
+    } : {}),
   }
 }

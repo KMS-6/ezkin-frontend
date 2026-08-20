@@ -1,5 +1,4 @@
 import { Capacitor } from '@capacitor/core'
-import { isDemoPersonaUser } from '../utils/appDateTime'
 import { androidLocationBridge } from './androidLocationBridge'
 
 export interface CurrentEnvironmentData {
@@ -168,8 +167,6 @@ export async function refreshCurrentWeatherData(
   userId: string,
   options: WeatherDataServiceOptions = {},
 ): Promise<CurrentEnvironmentData | undefined> {
-  if (isDemoPersonaUser(userId)) return undefined
-
   const now = options.now?.() ?? new Date()
   const position = options.position ?? await (options.positionRequester ?? requestCurrentPosition)()
   const environment = await requestOpenMeteoWeather(position, options.fetcher ?? getWeatherFetch(), now)
@@ -181,8 +178,6 @@ export async function getCurrentWeatherData(
   userId: string,
   options: WeatherDataServiceOptions = {},
 ): Promise<CurrentEnvironmentData | undefined> {
-  if (isDemoPersonaUser(userId)) return undefined
-
   const now = options.now?.() ?? new Date()
   const stored = readStoredWeatherData(userId)
   const freshEnvironment = stored && isFresh(stored, now) ? stored.environment : undefined

@@ -25,7 +25,7 @@ export async function saveNotificationSettings(
 ): Promise<NotificationSettings> {
   if (
     import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API === 'true'
-    && isDemoPersonaUser(userId)
+    && !isDemoPersonaUser(userId)
   ) {
     try {
       const response = await apiRequest<{ morning_briefing_enabled: boolean }>('/notifications/settings', {

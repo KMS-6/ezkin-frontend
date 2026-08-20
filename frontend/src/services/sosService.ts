@@ -155,6 +155,40 @@ function createMockResponse(message: string, context: SOSContext): SendSOSMessag
   }
 }
 
+const DEMO_URGENT_KEYWORDS = [
+  '호흡 곤란',
+  '숨이 안',
+  '입술이 부',
+  '눈이 부',
+  '눈 주변이 부',
+  '물집',
+  '고열',
+  '의식이',
+]
+
+function createDemoResponse(message: string, context: SOSContext): SendSOSMessageResponse {
+  const normalized = message.toLowerCase()
+  if (DEMO_URGENT_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return {
+      message: '지금은 일반적인 피부 케어 안내보다 의료기관의 확인이 우선이에요. 증상이 빠르게 심해지거나 호흡이 불편하면 즉시 응급 도움을 받아주세요.',
+      safetyLevel: 'urgent',
+      professionalHelpSuggested: true,
+    }
+  }
+
+  if (
+    (normalized.includes('최근') || normalized.includes('패턴') || normalized.includes('스캔'))
+    && context.latestScan?.summary
+  ) {
+    return {
+      message: `${context.latestScan.summary} 원인을 단정하는 결과는 아니며, 같은 시기의 변화를 함께 정리한 내용이에요.`,
+      safetyLevel: 'normal',
+    }
+  }
+
+  return createMockResponse(message, context)
+}
+
 export async function resolveSOSMessageWithSafetyGate(
   request: SendSOSMessageRequest,
   useQuickCareApi: boolean,
@@ -198,9 +232,11 @@ export async function sendSOSMessage(
 ): Promise<SendSOSMessageResponse> {
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
-  const useLiveSos = USE_SOS_API && isDemoPersonaUser(request.context.userId)
+  const isDemoUser = isDemoPersonaUser(request.context.userId)
+  const useQuickCareApi = USE_QUICK_CARE_API && !isDemoUser
+  const useLiveSos = USE_SOS_API && !isDemoUser
 
-  if (!USE_QUICK_CARE_API && !useLiveSos) {
+  if (!useQuickCareApi && !useLiveSos) {
     await wait(850)
     if (message === '__SOS_MOCK_ERROR__') {
       throw new SOSServiceError('GENERAL_RESPONSE_FAILED', 'SOS 답변을 불러오지 못했어요.')
@@ -208,7 +244,11 @@ export async function sendSOSMessage(
   }
   return resolveSOSMessageWithSafetyGate(
     { ...request, message },
-    USE_QUICK_CARE_API,
-    useLiveSos ? { generalResponder: createLiveResponse } : {},
+    useQuickCareApi,
+    useLiveSos
+      ? { generalResponder: createLiveResponse }
+      : isDemoUser
+        ? { generalResponder: createDemoResponse }
+        : {},
   )
 }

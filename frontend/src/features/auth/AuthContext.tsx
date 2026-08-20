@@ -12,7 +12,6 @@ import {
   logout as logoutService,
   signup as signupService,
 } from '../../services/authService'
-import { getOnboardingProfile } from '../../services/onboardingService'
 import { resolveDemoScenarioEntryUser } from '../../services/demoScenarioService'
 import type { LoginRequest, SignupRequest, User } from '../../types/auth'
 import { AuthContext } from './authContextValue'
@@ -31,12 +30,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     void getEntryUser()
       .then(resolveDemoScenarioEntryUser)
-      .then(async (entryUser) => {
-        if (!entryUser || entryUser.onboardingCompleted) return entryUser
-
-        const profile = await getOnboardingProfile(entryUser.id)
-        return profile.completedAt ? completeOnboardingService() : entryUser
-      })
       .then((currentUser) => {
         if (isActive) setUser(currentUser)
       })
@@ -72,11 +65,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  const completeOnboarding = useCallback(async () => {
-    const updatedUser = await completeOnboardingService()
+  const completeOnboarding = useCallback(async (targetUser?: User) => {
+    const updatedUser = await completeOnboardingService(targetUser ?? user ?? undefined)
     setUser(updatedUser)
     return updatedUser
-  }, [])
+  }, [user])
 
   const value = useMemo<AuthContextValue>(
     () => ({

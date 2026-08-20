@@ -36,6 +36,7 @@ import type {
   SkinScanState,
 } from '../types/skinScan'
 import type { TriggerAnalysisDetail } from '../types/analysisReport'
+import { isSkinScanAvailableForUser } from '../services/userFeatureAvailability'
 
 const errorMessages: Record<SkinScanErrorCode, { title: string; description: string }> = {
   permission_denied: {
@@ -62,6 +63,7 @@ const errorMessages: Record<SkinScanErrorCode, { title: string; description: str
 
 export function ScanPage() {
   const { user } = useAuth()
+  const isSkinScanAvailable = isSkinScanAvailableForUser(user?.id)
   const navigate = useNavigate()
   const cameraRef = useRef<ScanCameraHandle>(null)
   const analysisRunRef = useRef(0)
@@ -183,6 +185,25 @@ export function ScanPage() {
     setCountdown(null)
     setAnalysisErrorMessage(null)
     setState('idle')
+  }
+
+  if (!isSkinScanAvailable) {
+    return (
+      <>
+        <AppHeader title="피부 스캔" />
+        <PageContainer className="pt-3">
+          <Card className="px-6 py-9 text-center">
+            <span className="mx-auto grid size-14 place-items-center rounded-[20px] bg-ez-primary-soft text-ez-primary">
+              <Camera size={23} aria-hidden="true" />
+            </span>
+            <h1 className="mt-5 text-[19px] font-bold text-ez-text">현재 분석 기능을 준비 중이에요.</h1>
+            <p className="mx-auto mt-2 max-w-[290px] text-[13px] leading-6 text-ez-muted">
+              일반 사용자 피부 분석이 연결되면 이곳에서 사용할 수 있어요.
+            </p>
+          </Card>
+        </PageContainer>
+      </>
+    )
   }
 
   return (

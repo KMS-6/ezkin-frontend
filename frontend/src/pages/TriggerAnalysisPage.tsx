@@ -11,9 +11,11 @@ import {
 import { useAuth } from '../features/auth/authContextValue'
 import { getPatternAnalysis } from '../services/analysisService'
 import type { TriggerAnalysisDetail } from '../types/analysisReport'
+import { isAnalysisAvailableForUser } from '../services/userFeatureAvailability'
 
 export function TriggerAnalysisPage() {
   const { user } = useAuth()
+  const isAnalysisAvailable = isAnalysisAvailableForUser(user?.id)
   const { scanId = '' } = useParams()
   const location = useLocation()
   const [analysis, setAnalysis] = useState<TriggerAnalysisDetail | null>(null)
@@ -21,7 +23,10 @@ export function TriggerAnalysisPage() {
   const [hasError, setHasError] = useState(false)
 
   const loadAnalysis = useCallback(async () => {
-    if (!user) return
+    if (!user || !isAnalysisAvailable) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     setHasError(false)
     try {
@@ -31,7 +36,7 @@ export function TriggerAnalysisPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [scanId, user])
+  }, [isAnalysisAvailable, scanId, user])
 
   useEffect(() => { void loadAnalysis() }, [loadAnalysis])
   if (!user) return null
@@ -43,7 +48,13 @@ export function TriggerAnalysisPage() {
         backTo={(location.state as { backTo?: string } | null)?.backTo === '/analysis' ? '/analysis' : '/scan'}
       />
       <PageContainer className="pt-3">
-        {isLoading ? <TriggerSkeleton /> : hasError ? (
+        {!isAnalysisAvailable ? (
+          <EmptyState
+            icon={<ScanFace size={22} />}
+            title="분석 기능을 준비 중이에요."
+            description="일반 사용자 분석이 연결되면 이곳에서 확인할 수 있어요."
+          />
+        ) : isLoading ? <TriggerSkeleton /> : hasError ? (
           <EmptyState icon={<ScanFace size={22} />} title="분석 흐름을 불러오지 못했어요" description="분석 화면에서 다시 열어주세요." />
         ) : analysis ? <PatternAnalysisContent analysis={analysis} /> : <PatternAnalysisInsufficient />}
       </PageContainer>

@@ -1,9 +1,23 @@
 import { getMockPersona, getPersonaProfileSeed } from '../mocks/personas'
 import type { User } from '../types/auth'
-import type { DemoScenario, DemoScenarioOption } from '../types/demoScenario'
+import type { DemoScenario, DemoScenarioOption, ExperienceMode } from '../types/demoScenario'
 import type { OnboardingProfile } from '../types/onboarding'
 import { activateLocalUser, getCurrentUser } from './authService'
-import { clearDemoQuickInputs } from './quickInputService'
+import {
+  clearActiveBackendToken,
+  hasNormalBackendIdentity,
+  requiresNormalBackendIdentity,
+  restoreNormalBackendIdentity,
+} from './backendIdentityService'
+import {
+  createDefaultNormalUser,
+  normalizeNormalUserIdentity,
+} from './normalUserIdentityService'
+import {
+  clearDemoQuickInputs,
+  getTodayQuickInput,
+  saveDailyQuickInput,
+} from './quickInputService'
 import {
   clearRecentTriggerAnalysisReference,
   rememberTriggerAnalysisReference,
@@ -21,15 +35,17 @@ import {
 
 const DEMO_SCENARIO_KEY = 'ezkin:demo-scenario'
 const NORMAL_USER_KEY = 'ezkin:normal-user'
-export const NORMAL_USER_ID = 'ezkin-demo-user'
-export const DEMO_A_USER_ID = 'persona_a1_seoyeon'
-export const DEMO_B_USER_ID = 'persona_b1_eunji'
-export const DEMO_C_USER_ID = 'persona_c1_minjun'
+export { NORMAL_USER_ID } from './normalUserIdentityService'
+export const DEMO_LONG_TERM_USER_ID = 'persona_long_term_yeonseo'
 
 export const demoScenarioOptions: DemoScenarioOption[] = [
-  { id: 'A', label: '워치 없음 · 첫 사용', userId: DEMO_A_USER_ID, personaId: 'A1' },
-  { id: 'B', label: '워치 연결 · 첫 사용', userId: DEMO_B_USER_ID, personaId: 'B1' },
-  { id: 'C', label: '워치 연결 · 장기 사용', userId: DEMO_C_USER_ID, personaId: 'C1' },
+  {
+    id: 'long_term',
+    label: '장기 사용자 데모',
+    description: '30일 이상 사용한 사용자의 누적 분석 경험을 미리 확인합니다.',
+    userId: DEMO_LONG_TERM_USER_ID,
+    personaId: 'LONG_TERM',
+  },
 ]
 
 export function isDemoScenarioEnabled(
@@ -38,33 +54,34 @@ export function isDemoScenarioEnabled(
   return value === 'true'
 }
 
-export function getStoredDemoScenario(): DemoScenario | null {
+export function getStoredExperienceMode(): ExperienceMode {
   const saved = localStorage.getItem(DEMO_SCENARIO_KEY)
-  const scenario = saved === 'A' || saved === 'B' || saved === 'C'
-    ? saved
-    : saved === 'first'
-      ? 'A'
-      : saved === '30d'
-        ? 'C'
-        : null
-  if (scenario) localStorage.setItem(DEMO_SCENARIO_KEY, scenario)
-  return scenario
+  if (saved === 'long_term' || saved === 'C' || saved === '30d') {
+    localStorage.setItem(DEMO_SCENARIO_KEY, 'long_term')
+    return 'long_term'
+  }
+  if (saved === 'normal') return 'normal'
+
+  const initialMode: ExperienceMode = isDemoScenarioEnabled() ? 'long_term' : 'normal'
+  localStorage.setItem(DEMO_SCENARIO_KEY, initialMode)
+  return initialMode
 }
 
-export function getActiveDemoScenario(userId: string): DemoScenario | null {
-  if (userId === DEMO_A_USER_ID) return 'A'
-  if (userId === DEMO_B_USER_ID) return 'B'
-  if (userId === DEMO_C_USER_ID) return 'C'
-  return null
+export function getStoredDemoScenario(): DemoScenario | null {
+  return getStoredExperienceMode() === 'long_term' ? 'long_term' : null
+}
+
+export function getActiveDemoScenario(): DemoScenario | null {
+  return getStoredDemoScenario()
 }
 
 function isPersonaUserId(userId: string): boolean {
-  return userId === DEMO_A_USER_ID || userId === DEMO_B_USER_ID || userId === DEMO_C_USER_ID
+  return userId.startsWith('persona_')
 }
 
 function rememberNormalUser(user: User): void {
   if (isPersonaUserId(user.id)) return
-  localStorage.setItem(NORMAL_USER_KEY, JSON.stringify(user))
+  localStorage.setItem(NORMAL_USER_KEY, JSON.stringify(normalizeNormalUserIdentity(user)))
 }
 
 function getRememberedNormalUser(): User {
@@ -72,30 +89,32 @@ function getRememberedNormalUser(): User {
   if (saved) {
     try {
       const user = JSON.parse(saved) as User
-      if (typeof user.id === 'string' && !isPersonaUserId(user.id)) return user
+      if (typeof user.id === 'string' && !isPersonaUserId(user.id)) {
+        return normalizeNormalUserIdentity(user)
+      }
     } catch {
       // Fall back to the stable local identity.
     }
   }
 
-  return {
-    id: NORMAL_USER_ID,
-    email: 'local@ezkin.app',
-    onboardingCompleted: false,
-  }
+  return createDefaultNormalUser()
 }
 
 export async function activateNormalMode(): Promise<User> {
-  localStorage.removeItem(DEMO_SCENARIO_KEY)
+  localStorage.setItem(DEMO_SCENARIO_KEY, 'normal')
   const rememberedUser = getRememberedNormalUser()
   const profile = await getOnboardingProfile(rememberedUser.id)
+  const backendIdentityReady = !requiresNormalBackendIdentity(rememberedUser.id)
+    || hasNormalBackendIdentity(rememberedUser.id)
   const user = {
     ...rememberedUser,
     nickname: profile.nickname ?? rememberedUser.nickname,
-    onboardingCompleted: Boolean(profile.completedAt),
+    onboardingCompleted: Boolean(profile.completedAt) && backendIdentityReady,
   }
   rememberNormalUser(user)
-  return activateLocalUser(user)
+  const activatedUser = await activateLocalUser(user)
+  restoreNormalBackendIdentity(user.id)
+  return activatedUser
 }
 
 function getScenarioOption(scenario: DemoScenario): DemoScenarioOption {
@@ -139,6 +158,12 @@ async function seedPersonaProfile(userId: string, reset = false): Promise<Onboar
   } else {
     clearRecentTriggerAnalysisReference(userId)
   }
+  if (!getTodayQuickInput(userId)) {
+    await saveDailyQuickInput(userId, {
+      waterChoice: '3_to_5',
+      dietChoice: 'normal',
+    })
+  }
   return getOnboardingProfile(userId)
 }
 
@@ -153,12 +178,11 @@ export async function activateDemoScenario(
   scenario: DemoScenario,
   options: { reset?: boolean } = {},
 ): Promise<User> {
-  if (!isDemoScenarioEnabled()) {
-    throw new Error('Demo 시나리오가 비활성화되어 있어요.')
-  }
-
   const currentUser = await getCurrentUser()
-  if (currentUser) rememberNormalUser(currentUser)
+  if (currentUser && !isPersonaUserId(currentUser.id)) {
+    rememberNormalUser(currentUser)
+    hasNormalBackendIdentity(currentUser.id)
+  }
 
   const option = getScenarioOption(scenario)
   const profile = await ensureDemoScenarioData(scenario, options)
@@ -169,33 +193,35 @@ export async function activateDemoScenario(
     onboardingCompleted: Boolean(profile.completedAt),
   })
 
+  clearActiveBackendToken()
+
   localStorage.setItem(DEMO_SCENARIO_KEY, scenario)
   return user
+}
+
+export async function resolveOnboardingCompletionTarget(
+  currentUser: User,
+): Promise<{ mode: ExperienceMode; user: User }> {
+  const mode = getStoredExperienceMode()
+  return {
+    mode,
+    user: mode === 'long_term' ? await activateDemoScenario(mode) : currentUser,
+  }
 }
 
 export async function resolveDemoScenarioEntryUser(
   currentUser: User | null,
 ): Promise<User | null> {
-  if (!isDemoScenarioEnabled()) {
-    return currentUser && !isPersonaUserId(currentUser.id) ? currentUser : activateNormalMode()
-  }
-
-  const storedScenario = getStoredDemoScenario()
-  if (storedScenario) {
-    const expectedUserId = getScenarioOption(storedScenario).userId
+  const activeMode = getStoredExperienceMode()
+  if (activeMode === 'long_term') {
+    const expectedUserId = getScenarioOption(activeMode).userId
     const canReuseCurrentUser = currentUser?.id === expectedUserId && currentUser.onboardingCompleted
-    return canReuseCurrentUser ? currentUser : activateDemoScenario(storedScenario)
-  }
-
-  const activeScenario = currentUser ? getActiveDemoScenario(currentUser.id) : null
-  if (activeScenario) {
-    localStorage.setItem(DEMO_SCENARIO_KEY, activeScenario)
-    return currentUser
+    return canReuseCurrentUser ? currentUser : activateDemoScenario(activeMode)
   }
 
   if (currentUser && !isPersonaUserId(currentUser.id)) {
     rememberNormalUser(currentUser)
-    return currentUser
+    return activateNormalMode()
   }
   return activateNormalMode()
 }

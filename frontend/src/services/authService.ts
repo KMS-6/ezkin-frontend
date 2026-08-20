@@ -5,12 +5,17 @@ import type {
   SignupRequest,
   User,
 } from '../types/auth'
+import { isDemoPersonaUser } from '../utils/appDateTime'
+import { ACCESS_TOKEN_STORAGE_KEY } from './apiClient'
+import {
+  createDefaultNormalUser,
+  normalizeNormalUserIdentity,
+} from './normalUserIdentityService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 
 const SESSION_KEY = 'ezkin:auth-session'
-const TOKEN_KEY = 'ezkin:access-token'
 const MOCK_USERS_KEY = 'ezkin:mock-users'
 const LEGACY_MOCK_USERS_KEYS = ['ezkin_mock_users', 'ezkin_users']
 
@@ -19,13 +24,11 @@ interface StoredMockUser {
   password: string
 }
 
-const localAppAccount: StoredMockUser = {
-  user: {
-    id: 'ezkin-demo-user',
-    email: 'local@ezkin.app',
-    onboardingCompleted: false,
-  },
-  password: '',
+function getLocalAppAccount(): StoredMockUser {
+  return {
+    user: createDefaultNormalUser(),
+    password: '',
+  }
 }
 
 export class AuthServiceError extends Error {
@@ -108,6 +111,7 @@ function parseMockUserStore(saved: string): StoredMockUser[] {
 }
 
 function normalizeMockUsers(users: StoredMockUser[]): StoredMockUser[] {
+  const localAppAccount = getLocalAppAccount()
   const normalized = [localAppAccount]
   const knownEmails = new Set([localAppAccount.user.email])
   const knownIds = new Set([localAppAccount.user.id])
@@ -144,13 +148,13 @@ function writeMockUsers(users: StoredMockUser[]): void {
 
 function saveSession(response: AuthResponse): void {
   localStorage.setItem(SESSION_KEY, JSON.stringify(response))
-  if (response.accessToken) localStorage.setItem(TOKEN_KEY, response.accessToken)
-  else localStorage.removeItem(TOKEN_KEY)
+  if (response.accessToken) localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, response.accessToken)
+  else localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
 }
 
 function clearSession(): void {
   localStorage.removeItem(SESSION_KEY)
-  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -159,7 +163,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   try {
-    const token = localStorage.getItem(TOKEN_KEY)
+    const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
@@ -262,7 +266,7 @@ export async function logout(): Promise<void> {
 
 export async function getCurrentUser(): Promise<User | null> {
   if (!USE_MOCK_API) {
-    if (!localStorage.getItem(TOKEN_KEY)) return null
+    if (!localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)) return null
     try {
       return await request<User>('/users/me')
     } catch (error) {
@@ -279,7 +283,7 @@ export async function getCurrentUser(): Promise<User | null> {
   try {
     const session = JSON.parse(saved) as AuthResponse
     // 자동 진입으로 만든 Demo session은 session의 온보딩 상태를 그대로 사용합니다.
-    if (session.user.id === localAppAccount.user.id) return session.user
+    if (!isDemoPersonaUser(session.user.id)) return normalizeNormalUserIdentity(session.user)
     const account = readMockUsers().find(({ user }) => user.id === session.user.id)
     return account?.user ?? session.user
   } catch {
@@ -293,10 +297,7 @@ export async function getEntryUser(): Promise<User | null> {
   if (currentUser || !USE_MOCK_API) return currentUser
 
   const response: AuthResponse = {
-    user: {
-      ...localAppAccount.user,
-    },
-    accessToken: `mock-token-${localAppAccount.user.id}`,
+    user: createDefaultNormalUser(),
   }
 
   saveSession(response)
@@ -310,20 +311,25 @@ export async function activateLocalUser(user: User): Promise<User> {
 
   saveSession({
     user,
-    accessToken: `mock-token-${user.id}`,
   })
   return user
 }
 
 export const activateDemoUser = activateLocalUser
 
-export async function completeOnboarding(): Promise<User> {
+export async function completeOnboarding(activeUser?: User): Promise<User> {
+  if (activeUser && isDemoPersonaUser(activeUser.id)) {
+    const user = { ...activeUser, onboardingCompleted: true }
+    saveSession({ user })
+    return user
+  }
+
   if (!USE_MOCK_API) {
     const user = await request<User>('/users/me', {
       method: 'PATCH',
       body: JSON.stringify({ onboardingCompleted: true }),
     })
-    const accessToken = localStorage.getItem(TOKEN_KEY) ?? undefined
+    const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
     saveSession({ user, accessToken })
     return user
   }
@@ -342,6 +348,7 @@ export async function completeOnboarding(): Promise<User> {
     writeMockUsers(users)
   }
 
-  saveSession({ ...session, user })
+  const accessToken = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
+  saveSession({ user, accessToken })
   return user
 }

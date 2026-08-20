@@ -22,7 +22,7 @@ function assert(condition, message) {
 
 const storage = new MemoryStorage()
 storage.setItem('ezkin:auth-session', JSON.stringify({
-  user: { id: 'persona_a1_seoyeon' },
+  user: { id: 'ezkin-live-smoke-user' },
 }))
 Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
 Object.defineProperty(globalThis, 'window', { value: globalThis, configurable: true })
@@ -44,19 +44,19 @@ try {
   const careContext = await server.ssrLoadModule('/src/services/careContextService.ts')
 
   const [today, shelf, eligibility, safety, context, settings] = await Promise.all([
-    briefing.getTodayBriefing('persona_a1_seoyeon'),
-    products.getMyProducts('persona_a1_seoyeon'),
-    analysis.getAnalysisEligibility('persona_a1_seoyeon'),
+    briefing.getTodayBriefing('ezkin-live-smoke-user'),
+    products.getMyProducts('ezkin-live-smoke-user'),
+    analysis.getAnalysisEligibility('ezkin-live-smoke-user'),
     quickCare.checkQuickCareSafety('피부가 조금 건조해요.'),
     careContext.previewCareContext({ humidity: 35, uv_index: 4, user_reports_discomfort: false }),
-    notifications.saveNotificationSettings('persona_a1_seoyeon', { morningBriefingEnabled: true }),
+    notifications.saveNotificationSettings('ezkin-live-smoke-user', { morningBriefingEnabled: true }),
   ])
-  await onboarding.saveConnectionSettings('persona_a1_seoyeon', {
+  await onboarding.saveConnectionSettings('ezkin-live-smoke-user', {
     lifeDataConnected: false,
     weatherConnected: true,
   })
-  await quickInput.saveWaterChoice('persona_a1_seoyeon', '3_to_5')
-  const dailyInput = await quickInput.saveDietChoice('persona_a1_seoyeon', 'normal')
+  await quickInput.saveWaterChoice('ezkin-live-smoke-user', '3_to_5')
+  const dailyInput = await quickInput.saveDietChoice('ezkin-live-smoke-user', 'normal')
 
   assert(typeof today.skinHeadline === 'string', 'Briefing response mapping failed')
   assert(Array.isArray(shelf), 'Shelf response mapping failed')
