@@ -45,6 +45,7 @@ const server = await createServer({
   logLevel: 'silent',
   define: {
     'import.meta.env.VITE_ENABLE_DEMO_SCENARIO': JSON.stringify('true'),
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://127.0.0.1:8000/api/v1'),
     'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
     'import.meta.env.VITE_USE_QUICK_CARE_API': JSON.stringify('true'),
     'import.meta.env.VITE_USE_CARE_CONTEXT_API': JSON.stringify('false'),
@@ -660,6 +661,7 @@ try {
     appType: 'custom',
     logLevel: 'silent',
     define: {
+      'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://127.0.0.1:8000/api/v1'),
       'import.meta.env.VITE_USE_MOCK_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SKIN_SCAN_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SHELF_API': JSON.stringify('true'),
@@ -899,7 +901,7 @@ try {
   const androidManifestSource = await readFile(new URL('../android/app/src/main/AndroidManifest.xml', import.meta.url), 'utf8')
   const androidLocationPluginSource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/EzkinLocationPlugin.java', import.meta.url), 'utf8')
   const androidMainActivitySource = await readFile(new URL('../android/app/src/main/java/com/wize/ezkin/MainActivity.java', import.meta.url), 'utf8')
-  const sosPageSource = await readFile(new URL('../src/pages/SOSPage.tsx', import.meta.url), 'utf8')
+  const sosPageSource = await readFile(new URL('../src/pages/SosPage.tsx', import.meta.url), 'utf8')
   const quickCareServiceSource = await readFile(new URL('../src/services/quickCareService.ts', import.meta.url), 'utf8')
   const sosServiceSource = await readFile(new URL('../src/services/sosService.ts', import.meta.url), 'utf8')
   const careContextServiceSource = await readFile(new URL('../src/services/careContextService.ts', import.meta.url), 'utf8')
