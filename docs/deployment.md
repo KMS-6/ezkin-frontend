@@ -177,7 +177,7 @@ curl --fail --show-error https://<api-host>/openapi.json
 cd frontend
 npm ci
 npm run lint
-npm run test:auth
+npm run test:entry
 npm run build
 
 cd ../backend
