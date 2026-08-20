@@ -244,7 +244,8 @@ export async function applyCareContextToBriefing(
 }
 
 async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
-  if (!USE_BRIEFING_API && USE_MOCK_API) {
+  const useLiveBriefing = !USE_MOCK_API || (USE_BRIEFING_API && isDemoPersonaUser(userId))
+  if (!useLiveBriefing) {
     const profile = userId ? await getOnboardingProfile(userId) : null
     const persona = userId ? getMockPersona(userId) : null
     if (profile && persona) {

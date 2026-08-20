@@ -6,11 +6,18 @@ interface StoredSession {
   user?: { id?: unknown }
 }
 
+const BACKEND_PERSONA_IDS: Readonly<Record<string, string>> = {
+  persona_a1_seoyeon: 'persona_001',
+  persona_b1_eunji: 'persona_002',
+  persona_c1_minjun: 'persona_003',
+}
+
 function getActivePersonaId(): string | null {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as StoredSession | null
     const userId = session?.user?.id
-    return typeof userId === 'string' && userId.startsWith('persona_') ? userId : null
+    if (typeof userId !== 'string' || !userId.startsWith('persona_')) return null
+    return BACKEND_PERSONA_IDS[userId] ?? userId
   } catch {
     return null
   }
@@ -32,6 +39,7 @@ export class ApiClientError extends Error {
 export interface ApiClientOptions {
   baseUrl?: string
   fetcher?: typeof fetch
+  personaId?: string
 }
 
 export async function apiRequest<T>(
@@ -48,7 +56,10 @@ export async function apiRequest<T>(
   }
   const token = localStorage.getItem(TOKEN_KEY)
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
-  const personaId = getActivePersonaId()
+  const explicitPersonaId = options.personaId
+  const personaId = explicitPersonaId
+    ? BACKEND_PERSONA_IDS[explicitPersonaId] ?? explicitPersonaId
+    : getActivePersonaId()
   if (personaId && !headers.has('X-Mock-Persona-Id')) {
     headers.set('X-Mock-Persona-Id', personaId)
   }

@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
 const STORAGE_KEY = 'ezkin:notification-settings'
 
@@ -22,7 +23,10 @@ export async function saveNotificationSettings(
   userId: string,
   settings: NotificationSettings,
 ): Promise<NotificationSettings> {
-  if (import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API === 'true') {
+  if (
+    import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API === 'true'
+    && isDemoPersonaUser(userId)
+  ) {
     const response = await apiRequest<{ morning_briefing_enabled: boolean }>('/notifications/settings', {
       method: 'PATCH',
       body: JSON.stringify({ morning_briefing_enabled: settings.morningBriefingEnabled }),

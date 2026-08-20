@@ -99,7 +99,7 @@ export async function getProductCatalog(): Promise<Product[]> {
 }
 
 export async function getMyProducts(userId: string): Promise<Product[]> {
-  if (USE_SHELF_API || !USE_MOCK_API) {
+  if ((USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API) {
     if (isPersonaUser(userId)) {
       const response = await apiRequest<{ items: BackendPersonaCosmetic[] }>('/cosmetics')
       return rememberLiveProducts(response.items.map(personaCosmeticToProduct))
@@ -114,7 +114,7 @@ export async function getMyProducts(userId: string): Promise<Product[]> {
 }
 
 export async function addMyProducts(userId: string, productIds: string[]): Promise<Product[]> {
-  if (USE_SHELF_API || !USE_MOCK_API) {
+  if ((USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API) {
     const selected = productCatalog.filter((product) => productIds.includes(product.id))
     await Promise.all(selected.map((product) => {
       if (isPersonaUser(userId)) {
@@ -140,9 +140,9 @@ export async function addMyProducts(userId: string, productIds: string[]): Promi
 }
 
 export async function getProductDetail(productId: string): Promise<Product | null> {
-  if (USE_SHELF_API || !USE_MOCK_API) {
-    const cached = liveProductsById.get(productId)
-    if (cached) return cached
+  const cached = liveProductsById.get(productId)
+  if (cached) return cached
+  if (!USE_MOCK_API) {
     try {
       return backendProductToProduct(await apiRequest<BackendShelfProduct>(`/shelf/products/${productId}`))
     } catch {
@@ -158,7 +158,7 @@ export async function getTodayProductRecommendations(
 ): Promise<ProductWithRecommendation[]> {
   const products = await getMyProducts(userId)
   const persona = getMockPersona(userId)
-  const usesLiveShelf = USE_SHELF_API || !USE_MOCK_API
+  const usesLiveShelf = (USE_SHELF_API && isPersonaUser(userId)) || !USE_MOCK_API
   let recommendations: TodayProductRecommendation[]
   if (usesLiveShelf && isPersonaUser(userId)) {
     const briefing = await apiRequest<{

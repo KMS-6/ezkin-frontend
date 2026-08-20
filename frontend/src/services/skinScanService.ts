@@ -1,6 +1,6 @@
 import { createMockSkinScanResult } from '../mocks/skinScan'
 import type { RecentTriggerAnalysisReference, SkinScanResult } from '../types/skinScan'
-import { getScanTimestamp } from '../utils/appDateTime'
+import { getScanTimestamp, isDemoPersonaUser } from '../utils/appDateTime'
 import { apiRequest } from './apiClient'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -26,7 +26,8 @@ function wait(milliseconds: number): Promise<void> {
 export async function analyzeSkin(image: Blob | File, userId?: string): Promise<SkinScanResult> {
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
 
-  if (!USE_SKIN_SCAN_API && USE_MOCK_API) {
+  const useLiveSkinScan = !USE_MOCK_API || (USE_SKIN_SCAN_API && isDemoPersonaUser(userId))
+  if (!useLiveSkinScan) {
     await wait(1100)
     return createMockSkinScanResult(getScanTimestamp(userId))
   }

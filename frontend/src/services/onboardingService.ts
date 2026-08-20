@@ -7,6 +7,7 @@ import type {
   SkinConcern,
 } from '../types/onboarding'
 import { apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
@@ -132,16 +133,16 @@ export function saveConnectionSettings(
   settings: ConnectionSettings,
 ): Promise<OnboardingProfile> {
   return saveProfileUpdate(userId, settings).then(async (profile) => {
-    if (USE_ONBOARDING_API || !USE_MOCK_API) {
+    if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
       await Promise.all([
         apiRequest('/consents/apple_health', {
           method: 'PUT',
           body: JSON.stringify({ consented: settings.lifeDataConnected }),
-        }),
+        }, { personaId: userId }),
         apiRequest('/consents/weather_location', {
           method: 'PUT',
           body: JSON.stringify({ consented: settings.weatherConnected }),
-        }),
+        }, { personaId: userId }),
       ])
     }
     return profile
@@ -153,7 +154,7 @@ export async function completeOnboardingProfile(userId: string): Promise<Onboard
     currentStep: 5,
     completedAt: new Date().toISOString(),
   })
-  if (USE_ONBOARDING_API || !USE_MOCK_API) {
+  if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
     const concernMap: Partial<Record<SkinConcern, string>> = {
       breakouts: 'cn_acne',
       oiliness: 'cn_oily_tzone',
@@ -168,7 +169,7 @@ export async function completeOnboardingProfile(userId: string): Promise<Onboard
         birth_year: profile.birthYear ?? null,
         menstrual_cycle_tracking: profile.healthConcerns.includes('cycle_related'),
       }),
-    })
+    }, { personaId: userId })
   }
   return profile
 }

@@ -8,6 +8,7 @@ import type {
 } from '../types/analysisReport'
 import { getRecentTriggerAnalysisReference } from './skinScanService'
 import { apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const USE_ANALYSIS_API = import.meta.env.VITE_USE_ANALYSIS_API === 'true'
@@ -29,7 +30,7 @@ async function requestPatternAnalysis(scanId: string): Promise<PatternAnalysis |
 }
 
 export async function getAnalysisEligibility(userId: string): Promise<AnalysisEligibility> {
-  if (USE_ANALYSIS_API || !USE_MOCK_API) {
+  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
     const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
     return {
       dataDays: response.available_days,
@@ -50,7 +51,7 @@ export async function getAnalysisReport(
   userId: string,
   period: AnalysisPeriod,
 ): Promise<AnalysisReport | null> {
-  if (USE_ANALYSIS_API || !USE_MOCK_API) {
+  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
     const created = await apiRequest<{ report_id: string }>('/reports', {
       method: 'POST',
       body: JSON.stringify({ period_days: period, locale: 'ko-KR' }),
@@ -76,7 +77,7 @@ export async function getPatternAnalysis(
   userId: string,
   scanId: string,
 ): Promise<TriggerAnalysisDetail | null> {
-  if (USE_ANALYSIS_API || !USE_MOCK_API) {
+  if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
     return requestPatternAnalysis(scanId)
   }
   if (!scanId) return null

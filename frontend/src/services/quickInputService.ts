@@ -5,7 +5,7 @@ import type {
   WaterChoice,
 } from '../types/androidNotification'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
-import { getTodayDateKey } from '../utils/appDateTime'
+import { getTodayDateKey, isDemoPersonaUser } from '../utils/appDateTime'
 import { apiRequest } from './apiClient'
 
 const QUICK_INPUT_STORAGE_KEY = 'ezkin:daily-quick-inputs'
@@ -158,7 +158,7 @@ export async function saveDailyQuickInput(
   }
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
-  if (isManualMetricsApiEnabled()) {
+  if (isManualMetricsApiEnabled() && isDemoPersonaUser(userId)) {
     await syncDailyQuickInput(next, backendQuickInputTransport)
   }
   emitQuickInputSync(next)

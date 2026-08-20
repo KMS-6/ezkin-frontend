@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test:entry": "node scripts/entry-integration-check.mjs",
+    "test:api-smoke": "node scripts/live-api-smoke.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

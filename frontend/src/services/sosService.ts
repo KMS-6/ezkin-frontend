@@ -7,6 +7,7 @@ import type { ProductCategory } from '../types/product'
 import type { QuickCareSafetyCheckResponse } from '../types/quickCare'
 import { checkQuickCareSafety } from './quickCareService'
 import { ApiClientError, apiRequest } from './apiClient'
+import { isDemoPersonaUser } from '../utils/appDateTime'
 
 export function isQuickCareApiEnabled(value = import.meta.env.VITE_USE_QUICK_CARE_API): boolean {
   return value === 'true'
@@ -197,8 +198,9 @@ export async function sendSOSMessage(
 ): Promise<SendSOSMessageResponse> {
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
+  const useLiveSos = USE_SOS_API && isDemoPersonaUser(request.context.userId)
 
-  if (!USE_QUICK_CARE_API && !USE_SOS_API) {
+  if (!USE_QUICK_CARE_API && !useLiveSos) {
     await wait(850)
     if (message === '__SOS_MOCK_ERROR__') {
       throw new SOSServiceError('GENERAL_RESPONSE_FAILED', 'SOS 답변을 불러오지 못했어요.')
@@ -207,6 +209,6 @@ export async function sendSOSMessage(
   return resolveSOSMessageWithSafetyGate(
     { ...request, message },
     USE_QUICK_CARE_API,
-    USE_SOS_API ? { generalResponder: createLiveResponse } : {},
+    useLiveSos ? { generalResponder: createLiveResponse } : {},
   )
 }
