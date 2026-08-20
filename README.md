@@ -1,112 +1,96 @@
-## 2026-08-20 Frontend Integration Status
+## dev3 현재 상황(최연서 장기 사용자 Demo 전용 제출 버전)
 
-현재 프론트엔드는 `dev1` 기준으로 API 연동 및 배포용 Demo/일반 사용자 흐름을 정리한 상태입니다.
+### 포함된 기능
 
-### 일반 사용자
+- 최연서 장기 사용자 Demo만 사용자에게 노출
+- 신규 설치 시 최연서 Demo로 바로 진입
+- 로그인 / 회원가입 / 온보딩 표시 없음
+- `/onboarding` 직접 접근 시 `/home`으로 이동
+- Settings에서 일반 사용자 전환 UI 제거
+- 저장된 일반 사용자 상태가 있어도 최연서 Demo 강제 유지
+- 일반 사용자 Service/API 코드는 삭제하지 않고 내부에 보존
+- Demo는 EZkin 백엔드 없이 핵심 시연 가능
+- Demo의 위치/날씨는 실제 위치 + Open-Meteo 사용
 
-실제 backend identity를 사용합니다.
+### 앱 진입 구조
 
-- 온보딩 완료 시 `POST /api/v1/users`
-- backend에서 발급된 `access_token` 저장
-- API 요청 시 `Authorization: Bearer <token>` 사용
-- Demo Persona identity와 일반 사용자 identity 분리
-- Demo → 일반 사용자 복귀 시 기존 실제 token 복원
-- backend identity가 없는 경우 Home에 바로 진입하지 않고 사용자 초기화 진행
+- 앱 실행 시 `long_term` 시나리오 활성화
+- 최연서 Demo profile/session을 로컬에서 준비
+- 온보딩 완료 여부와 관계없이 Demo Home으로 진입
+- 일반 사용자 backend identity 생성 없음
+- `POST /users` 호출 없음
+- 일반 사용자 Bearer token 활성화 없음
+- Shelf backend 동기화 없음
 
-현재 실제 API 연결:
+### 최연서 장기 사용자 Demo
 
-- Users
-- My Shelf
-- Open-Meteo 위치 기반 날씨
-  - 기온
-  - 습도
-  - UV
-- 사용 가능한 생활 기록 관련 기능
-
-현재 일반 사용자에서 비활성화한 API:
-
-- `GET /api/v1/briefings/today`
-- `POST /api/v1/skin-scans`
-- `GET /api/v1/analysis/eligibility`
-- Report 관련 API
-- `GET /api/v1/pattern-analysis`
-
-위 API들은 현재 확인한 backend runtime 기준으로 일반 사용자 Bearer context가 아닌 `X-Mock-Persona-Id`를 요구하여 `400 mock_persona_required`가 발생합니다.
-
-따라서 frontend에서는 현재 일반 사용자 요청을 차단하고 각 기능별 준비/empty state를 표시합니다.
-
-Backend `main`에 일반 사용자 인증을 지원하는 최종 API가 반영되면 `userFeatureAvailability.ts` 기준으로 실제 API를 다시 활성화할 예정입니다.
-
-### 장기 사용자 Demo
-
-기존 A/B/C Persona는 제거하고 장기 사용자 Persona `최연서` 하나로 정리했습니다.
-
-Demo에서는 실제 일반 사용자 DB와 Demo 데이터를 섞지 않습니다.
-
-포함 데이터:
-
-- Demo Briefing
-- Demo Skin Scan 결과
-- 72시간 Pattern
+- 보유 화장품 7개
+- 누적 Health 데이터
+- 수분 / 식단 생활 데이터
+- 피부 스캔 결과
+- 최근 72시간 Pattern Analysis
 - 14일 Report
 - 30일 Report
-- 누적 Health 데이터
-- 수분/식단 생활 데이터
-- My Shelf 제품 7개
+- 피부 상태와 보유 제품을 반영한 deterministic SOS 응답
+- Demo 데이터는 backend DB 상태와 관계없이 안정적으로 표시
 
-날씨는 Demo에서도 Mock이 아닌 실제 위치 기반 Open-Meteo 데이터를 사용합니다.
+### 네트워크 사용 범위
 
-실제 습도와 UV는 Care Context에도 동일하게 전달됩니다.
+- EZkin backend 요청 0회
+- 실제 Android/Browser 위치 사용
+- Open-Meteo를 통해 실제 기온 / 습도 / UV 조회
+- 위도/경도는 날씨 요청 순간에만 사용하고 저장하지 않음
+- 날씨 결과만 사용자별로 30분 캐시
+- Open-Meteo 실패 시 가짜 환경값을 만들지 않고 기존 empty/fallback UI 사용
+- 날씨 실패가 전체 Demo 화면 오류로 이어지지 않음
 
-### 주요 구조 변경
+### Backend 없이 동작하는 화면
 
-- 일반 사용자 / Demo 데이터 분리
-- 실제 backend access token 저장 및 복원
-- `mock-token-*` 사용 제거
-- Demo session 진입 시 active 일반 사용자 token 제거
-- Demo → 일반 사용자 전환 시 실제 token 복원
-- Persona 전용 API를 일반 사용자에서 호출하지 않도록 차단
-- `userFeatureAvailability.ts`에서 기능 가용성 통합 관리
-- Home 전체 오류 화면 대신 기능별 unavailable/empty state 처리
-- Life Log 날씨는 Briefing API와 독립적으로 Open-Meteo cache 사용
-- SOS Context는 일반 사용자에서 Profile / Shelf / Life Log 기반으로 구성
+- Home
+- Today Briefing
+- Life Log
+- My Shelf
+- Product Detail
+- Skin Scan Demo
+- 72시간 Pattern Analysis
+- 14일 Report
+- 30일 Report
+- SOS Demo
+- Settings
 
-### 확인된 Runtime 결과
+### 코드 유지 전략
 
-```text
-POST /api/v1/users                  → 201 Created
-GET  /api/v1/shelf/products         → 200 OK
+- `dev2`의 일반 사용자 및 실제 API Service 구조 유지
+- 일반 사용자 코드를 대대적으로 삭제하지 않음
+- 제출 화면에서 일반 사용자 진입 경로만 제거
+- Demo/일반 사용자 데이터 저장 구조는 분리 상태로 유지
+- 실제 API 연동 작업은 계속 `dev2`에서 진행
+- `dev3`는 안정성 확인 후 필수 수정 외에는 변경하지 않는 제출 안전판으로 사용
 
-GET  /api/v1/briefings/today        → 400 mock_persona_required
-POST /api/v1/skin-scans             → 400 mock_persona_required
-GET  /api/v1/analysis/eligibility   → 400 mock_persona_required
-```
+### 검증 결과
 
-마지막 세 API는 frontend 오류가 아니라 현재 backend API contract가 일반 사용자 Bearer context를 지원하지 않아 발생합니다.
+- 저장된 일반 사용자 상태 → 최연서 Demo 강제 진입 PASS
+- Onboarding 없이 Home 진입 PASS
+- `/onboarding` 직접 접근 → `/home` 이동 PASS
+- Demo 진입 중 EZkin backend 요청 0회 PASS
+- 준비된 Shelf / Health / Scan / Pattern / Report / SOS 데이터 PASS
+- `npm run lint` PASS
+- `npm run test:entry` PASS
+- `npm run build` PASS
+- `npx cap sync android` PASS
+- Android `assembleDebug` BUILD SUCCESSFUL
 
-### Backend main 반영 후 해야 할 작업
+### Git
 
-1. backend `main` 최신 버전 실행
-2. `/docs` 또는 `/openapi.json` 확인
-3. 실제 Bearer token으로 아래 API 재검증
-   - Briefing
-   - Skin Scan
-   - Analysis
-   - Pattern
-   - Reports
-4. 일반 사용자 Bearer 인증 지원이 확인되면 frontend API 재활성화
-5. Android Emulator / 실제 APK QA
+- 브랜치: `dev3`
+- 원격 기준 커밋
+  - `25165dd feat: lock submission build to long-term demo`
+- 원격 브랜치
+  - `origin/dev3`
+- `/onboarding` → `/home` 직접 이동 변경과 이 문서는 현재 로컬 변경 상태
 
-### Frontend 검증
+### 배포 전략
 
-현재 아래 검증을 통과했습니다.
-
-- `npm run lint`
-- `npm run test:entry`
-- `npm run build`
-- `git diff --check`
-- 일반 사용자 Persona 전용 API fetch 0회
-- 실제 Shelf Bearer 요청 200 확인
-- 일반 사용자 / Demo 데이터 격리 확인
-- Demo 최연서 전체 흐름 확인
-- Open-Meteo 기온 / 습도 / UV 확인
+- `dev2`: 일반 사용자 + Demo / 실제 백엔드 연동 작업용
+- `dev3`: 최연서 Demo 전용 최종 제출 안전판
+- 백엔드가 불안정하거나 일반 사용자 API가 완성되지 않으면 `dev3`로 최종 배포
