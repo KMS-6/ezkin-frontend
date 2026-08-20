@@ -271,7 +271,7 @@ function ScanPreview({ imageUrl, onAnalyze, onRetake }: { imageUrl: string; onAn
       <SecondaryButton type="button" fullWidth className="mt-2" onClick={onRetake} icon={<RotateCcw size={16} aria-hidden="true" />}>
         다시 찍기
       </SecondaryButton>
-      <p className="mt-3 text-[11px] text-ez-muted">현재 데모에서는 촬영 사진을 서버에 저장하지 않아요.</p>
+      <p className="mt-3 text-[11px] text-ez-muted">촬영 사진은 피부 분석을 위해 서버로 전송돼요.</p>
     </section>
   )
 }
