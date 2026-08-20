@@ -110,21 +110,21 @@ try {
 
   let defaultEntryBackendCalls = 0
   let automaticUser = null
-  let defaultLongTermUser = null
+  let defaultEntryUser = null
   const defaultEntryFetch = globalThis.fetch
   try {
     globalThis.fetch = async () => {
       defaultEntryBackendCalls += 1
-      throw new Error('default long-term entry must not call the EZkin backend')
+      throw new Error('default local entry must not call the EZkin backend')
     }
     automaticUser = await auth.getEntryUser()
-    defaultLongTermUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
+    defaultEntryUser = await scenario.resolveDemoScenarioEntryUser(automaticUser)
   } finally {
     globalThis.fetch = defaultEntryFetch
   }
-  assert(defaultLongTermUser?.id === scenario.DEMO_LONG_TERM_USER_ID && defaultLongTermUser.onboardingCompleted, 'fresh install did not enter the completed long-term Demo')
-  assert(scenario.getStoredExperienceMode() === 'long_term' && storage.getItem('ezkin:demo-scenario') === 'long_term', 'fresh install did not persist the long-term mode as the single source')
-  assert(defaultEntryBackendCalls === 0, 'fresh long-term Demo entry called the EZkin backend')
+  assert(defaultEntryUser?.id === scenario.NORMAL_USER_ID && !defaultEntryUser.onboardingCompleted, 'fresh install did not enter the normal-user onboarding flow')
+  assert(scenario.getStoredExperienceMode() === 'normal' && storage.getItem('ezkin:demo-scenario') === 'normal', 'fresh install did not persist normal mode as the single source')
+  assert(defaultEntryBackendCalls === 0, 'fresh normal entry called the EZkin backend before onboarding')
 
   const freshNormalUser = await scenario.activateNormalMode()
   const freshNormalProfile = await onboarding.getOnboardingProfile(freshNormalUser.id)
@@ -141,19 +141,19 @@ try {
   assert(!userFeatures.isAnalysisAvailableForUser(freshNormalUser.id), 'normal user exposed Persona-only Analysis')
   assert(quickInput.getTodayQuickInput(freshNormalUser.id) === null, 'Persona quick input leaked into the fresh normal user')
   assert(scenario.getStoredExperienceMode() === 'normal' && scenario.getStoredDemoScenario() === null, 'normal selection did not deactivate the Demo mode')
-  let forcedSubmissionBackendCalls = 0
-  const forcedSubmissionFetch = globalThis.fetch
+  let restoredNormalBackendCalls = 0
+  const restoredNormalFetch = globalThis.fetch
   try {
     globalThis.fetch = async () => {
-      forcedSubmissionBackendCalls += 1
-      throw new Error('submission entry must not call the EZkin backend')
+      restoredNormalBackendCalls += 1
+      throw new Error('normal entry must not call the EZkin backend before onboarding')
     }
-    const forcedSubmissionUser = await scenario.resolveDemoScenarioEntryUser(freshNormalUser)
-    assert(forcedSubmissionUser.id === scenario.DEMO_LONG_TERM_USER_ID && forcedSubmissionUser.onboardingCompleted, 'stored normal mode was not forced back to the long-term Demo')
+    const restoredNormalUser = await scenario.resolveDemoScenarioEntryUser(freshNormalUser)
+    assert(restoredNormalUser.id === scenario.NORMAL_USER_ID && !restoredNormalUser.onboardingCompleted, 'stored normal mode did not restore normal onboarding')
   } finally {
-    globalThis.fetch = forcedSubmissionFetch
+    globalThis.fetch = restoredNormalFetch
   }
-  assert(forcedSubmissionBackendCalls === 0 && storage.getItem('ezkin:demo-scenario') === 'long_term', 'forced submission entry called the backend or did not persist long-term mode')
+  assert(restoredNormalBackendCalls === 0 && storage.getItem('ezkin:demo-scenario') === 'normal', 'normal entry called the backend or changed experience mode')
   await scenario.activateNormalMode()
   let staleModeCompletionCalls = 0
   let staleModeCompletionTarget = null
@@ -162,7 +162,7 @@ try {
     storage.setItem('ezkin:demo-scenario', 'long_term')
     globalThis.fetch = async () => {
       staleModeCompletionCalls += 1
-      throw new Error('Demo onboarding completion must not call the EZkin backend')
+      throw new Error('local onboarding completion must not call the EZkin backend')
     }
     staleModeCompletionTarget = await scenario.resolveOnboardingCompletionTarget(freshNormalUser)
     await onboarding.completeOnboardingProfile(staleModeCompletionTarget.user.id)
@@ -170,8 +170,8 @@ try {
   } finally {
     globalThis.fetch = staleModeFetch
   }
-  assert(staleModeCompletionTarget?.mode === 'long_term' && staleModeCompletionTarget.user.id === scenario.DEMO_LONG_TERM_USER_ID, 'stale normal React user was not reconciled with the active long-term mode')
-  assert(staleModeCompletionCalls === 0 && !storage.getItem('ezkin:access-token'), 'Demo onboarding completion created a backend identity or token')
+  assert(staleModeCompletionTarget?.mode === 'normal' && staleModeCompletionTarget.user.id === scenario.NORMAL_USER_ID, 'normal onboarding completion changed into a Demo identity')
+  assert(staleModeCompletionCalls === 0 && !storage.getItem('ezkin:access-token'), 'local onboarding completion unexpectedly created a token')
   await scenario.activateNormalMode()
   const normalLocalTime = new Date(2026, 0, 2, 19, 30, 0)
   assert(appDateTime.getTodayDateKey(freshNormalUser.id, normalLocalTime) === '2026-01-02', 'normal user today key does not use the device-local calendar date')
@@ -274,7 +274,7 @@ try {
   await auth.completeOnboarding()
   await quickInput.saveDietChoice(freshNormalUser.id, 'normal')
   const completedNormalUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
-  assert(completedNormalUser.id === scenario.DEMO_LONG_TERM_USER_ID && completedNormalUser.onboardingCompleted, 'submission entry exposed the completed normal user instead of the long-term Demo')
+  assert(completedNormalUser.id === scenario.NORMAL_USER_ID && completedNormalUser.onboardingCompleted, 'completed normal user was not restored')
 
   const longTermUser = await scenario.activateDemoScenario('long_term')
   let demoWeatherPositionRequests = 0
@@ -421,10 +421,10 @@ try {
     enabled: true,
     requestPreview: async () => {
       demoCareContextCalls += 1
-      throw new Error('long-term Demo must not call Care Context')
+      return directCareContext
     },
   })
-  assert(demoCareContextCalls === 0 && demoCareContextBriefing === briefingLongTerm, 'long-term Demo called the Care Context backend')
+  assert(demoCareContextCalls === 1 && demoCareContextBriefing.careContext?.care_mode === 'moisture_focused', 'long-term Demo did not use enabled Care Context')
   assert(careContext.isCareContextApiEnabled('false') === false && careContext.isCareContextApiEnabled('true') === true, 'VITE_USE_CARE_CONTEXT_API string parsing is incorrect')
 
   assert(longTermUser.id === scenario.DEMO_LONG_TERM_USER_ID && profileLongTerm.nickname === '최연서' && profileLongTerm.gender === 'female', 'long-term demo persona is incorrect')
@@ -463,16 +463,33 @@ try {
   assert(mockSafetyCalls === 0 && mockSOSResponse.message.includes('레티놀'), 'mock mode did not preserve the existing SOS response flow')
 
   const originalFetch = globalThis.fetch
-  let demoSOSBackendCalls = 0
+  const demoBackendUrls = []
+  let demoQuickCareCallCount = 0
   let demoSOSResponse = null
   let demoUrgentResponse = null
   let demoPatternResponse = null
   let demoCompletedUser = null
   let demoCompletedProfile = null
   try {
-    globalThis.fetch = async () => {
-      demoSOSBackendCalls += 1
-      throw new Error('long-term Demo must not call the EZkin backend')
+    globalThis.fetch = async (input) => {
+      const url = String(input)
+      demoBackendUrls.push(url)
+      if (url.endsWith('/quick-care/safety-check')) {
+        demoQuickCareCallCount += 1
+        const shouldStop = demoQuickCareCallCount === 2
+        return new Response(JSON.stringify({
+          action: shouldStop ? 'stop_ai_guidance' : 'continue_general_guidance',
+          reply: shouldStop ? '의료기관의 확인을 우선해 주세요.' : '일반 안내를 계속할 수 있어요.',
+          professional_help_suggested: shouldStop,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      if (url.endsWith('/care-contexts/preview')) {
+        return new Response(JSON.stringify(directCareContext), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected Demo backend request: ${url}`)
     }
     demoSOSResponse = await sosService.sendSOSMessage({ message: '레티놀 써도 돼?', context: sosLongTerm })
     demoUrgentResponse = await sosService.sendSOSMessage({ message: '숨이 안 쉬어지고 입술이 부었어', context: sosLongTerm })
@@ -501,9 +518,10 @@ try {
   } finally {
     globalThis.fetch = originalFetch
   }
-  assert(demoSOSBackendCalls === 0 && demoSOSResponse?.message.includes('레티놀'), 'long-term Demo core flow called an EZkin backend endpoint')
+  assert(demoBackendUrls.filter((url) => url.endsWith('/quick-care/safety-check')).length === 3 && demoSOSResponse?.message.includes('레티놀'), 'long-term Demo did not use the enabled Quick Care safety gate')
+  assert(demoBackendUrls.filter((url) => url.endsWith('/care-contexts/preview')).length === 1, 'long-term Demo did not use the enabled Care Context API')
   assert(demoCompletedProfile?.completedAt && demoCompletedUser?.onboardingCompleted, 'long-term Demo onboarding did not complete locally while backend was unavailable')
-  assert(demoUrgentResponse?.professionalHelpSuggested === true && demoUrgentResponse?.safetyLevel === 'urgent', 'long-term Demo SOS did not keep deterministic urgent guidance')
+  assert(demoUrgentResponse?.professionalHelpSuggested === true && demoUrgentResponse?.safetyGateAction === 'stop_ai_guidance', 'long-term Demo SOS did not respect the backend safety stop')
   assert(demoPatternResponse?.message.includes(patternLongTerm.observed_pattern.text), 'long-term Demo SOS did not use the prepared Pattern context')
 
   let dedicatedFlagRequestUrl = ''
@@ -633,8 +651,8 @@ try {
   }))
   storage.setItem('ezkin:diet-choices', JSON.stringify({ [existingUserId]: 'spicy' }))
 
-  const existingDefaultDemoUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
-  assert(existingDefaultDemoUser.id === scenario.DEMO_LONG_TERM_USER_ID, 'fresh mode state did not default an existing installation to the review Demo')
+  const existingDefaultUser = await scenario.resolveDemoScenarioEntryUser(await auth.getEntryUser())
+  assert(existingDefaultUser.id === existingUserId, 'fresh mode state did not restore the existing normal installation')
   const existingUser = await scenario.activateNormalMode()
   assert(existingUser.id === existingUserId, 'existing non-demo user id was replaced')
   assert((await onboarding.getOnboardingProfile(existingUserId)).skinType === 'dry', 'existing skin data was replaced')
@@ -666,6 +684,13 @@ try {
       'import.meta.env.VITE_USE_SKIN_SCAN_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SHELF_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_ANALYSIS_API': JSON.stringify('true'),
+      'import.meta.env.VITE_USE_BRIEFING_API': JSON.stringify('true'),
+      'import.meta.env.VITE_USE_QUICK_CARE_API': JSON.stringify('false'),
+      'import.meta.env.VITE_USE_CARE_CONTEXT_API': JSON.stringify('false'),
+      'import.meta.env.VITE_USE_MANUAL_METRICS_API': JSON.stringify('true'),
+      'import.meta.env.VITE_USE_SOS_API': JSON.stringify('true'),
+      'import.meta.env.VITE_USE_ONBOARDING_API': JSON.stringify('false'),
+      'import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API': JSON.stringify('true'),
     },
     server: { middlewareMode: true },
   })
@@ -726,6 +751,60 @@ try {
         limitation_notice: '의료 진단을 대신하지 않아요.',
       }), { status: 200, headers: { 'Content-Type': 'application/json' } })
     }
+    if (url.endsWith('/skin-scans?limit=20')) {
+      return new Response(JSON.stringify({
+        items: [{
+          scan_id: '94cbdd1a-bacd-4f7d-887f-69924fc9d369',
+          status: 'completed',
+          captured_at: '2026-08-20T08:00:00.000Z',
+        }],
+        next_cursor: null,
+        has_more: false,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (url.includes('/pattern-analysis?scan_id=94cbdd1a-bacd-4f7d-887f-69924fc9d369')) {
+      return new Response(JSON.stringify({
+        scan_id: '94cbdd1a-bacd-4f7d-887f-69924fc9d369',
+        window: { start: '2026-08-17T08:00:00.000Z', end: '2026-08-20T08:00:00.000Z' },
+        raw_facts: [],
+        observed_pattern: null,
+        common_knowledge: null,
+        disclaimer: '관찰 정보예요.',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (url.endsWith('/sos/sessions') && init.method === 'POST') {
+      return new Response(JSON.stringify({
+        session_id: 'live-demo-session',
+        quick_replies: [],
+      }), { status: 201, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (url.endsWith('/sos/sessions/live-demo-session/messages') && init.method === 'POST') {
+      return new Response(JSON.stringify({
+        message_id: 'live-demo-message',
+        reply_type: 'answer',
+        reply: 'Persona 데이터를 바탕으로 안내했어요.',
+        matched_faq: null,
+        decision: null,
+        referenced_cosmetic_ids: [],
+        used_contexts: ['persona'],
+        safety_flag: null,
+        expert_referral_suggested: false,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (url.endsWith('/daily-metrics/manual') && init.method === 'POST') {
+      return new Response(JSON.stringify({
+        metric_date: liveBoundaryCalls.at(-1)?.body?.metric_date,
+        water_intake_level: liveBoundaryCalls.at(-1)?.body?.water_intake_level,
+        diet_flag: liveBoundaryCalls.at(-1)?.body?.diet_flag ?? null,
+        updated_at: '2026-08-21T10:00:00.000Z',
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }
+    if (url.endsWith('/notifications/settings') && init.method === 'PATCH') {
+      return new Response(JSON.stringify({ morning_briefing_enabled: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
     throw new Error(`Unexpected live-boundary request: ${url}`)
   }
   try {
@@ -737,26 +816,29 @@ try {
     const liveIdentity = await liveBoundaryServer.ssrLoadModule('/src/services/backendIdentityService.ts')
     const liveAnalysis = await liveBoundaryServer.ssrLoadModule('/src/services/analysisService.ts')
     const liveBriefing = await liveBoundaryServer.ssrLoadModule('/src/services/briefingService.ts')
+    const liveSos = await liveBoundaryServer.ssrLoadModule('/src/services/sosService.ts')
+    const liveQuickInput = await liveBoundaryServer.ssrLoadModule('/src/services/quickInputService.ts')
+    const liveNotifications = await liveBoundaryServer.ssrLoadModule('/src/services/notificationSettingsService.ts')
 
-    let unsupportedNormalScanRejected = false
+    let uninitializedNormalScanRejected = false
     try {
       await liveSkinScan.analyzeSkin(demoImage, 'normal-live-user')
     } catch (error) {
-      unsupportedNormalScanRejected = error?.name === 'FeatureUnavailableError'
+      uninitializedNormalScanRejected = error?.name === 'BackendIdentityRequiredError'
     }
-    assert(unsupportedNormalScanRejected && liveBoundaryCalls.length === 0, 'normal Skin Scan called a Persona-only API')
+    assert(uninitializedNormalScanRejected && liveBoundaryCalls.length === 0, 'normal Skin Scan requested the API without a backend identity')
     assert((await liveProducts.getMyProducts('normal-live-user')).length === 0 && liveBoundaryCalls.length === 0, 'normal Shelf requested without a backend identity')
     await Promise.all([
       liveBriefing.getTodayBriefing('normal-live-user').then(
         () => { throw new Error('Briefing unexpectedly resolved without identity') },
-        (error) => assert(error?.name === 'FeatureUnavailableError', 'normal Briefing called a Persona-only API'),
+        (error) => assert(error?.name === 'BackendIdentityRequiredError', 'normal Briefing requested the API without a backend identity'),
       ),
       liveAnalysis.getAnalysisEligibility('normal-live-user').then(
         () => { throw new Error('Analysis unexpectedly resolved without identity') },
-        (error) => assert(error?.name === 'FeatureUnavailableError', 'normal Analysis called a Persona-only API'),
+        (error) => assert(error?.name === 'BackendIdentityRequiredError', 'normal Analysis requested the API without a backend identity'),
       ),
     ])
-    assert(liveBoundaryCalls.length === 0, 'Persona-only API requests escaped in normal mode')
+    assert(liveBoundaryCalls.length === 0, 'authenticated API requests escaped before identity initialization')
 
     const liveNormalUser = {
       id: 'normal-live-user',
@@ -791,28 +873,42 @@ try {
     assert(liveIdentity.restoreNormalBackendIdentity('normal-live-user') && storage.getItem('ezkin:access-token') === 'real-backend-token', 'Demo to normal could not restore the persisted backend token')
     liveBoundaryCalls.length = 0
 
-    await Promise.all([
-      liveSkinScan.analyzeSkin(demoImage, 'normal-live-user').then(
-        () => { throw new Error('normal Skin Scan unexpectedly resolved') },
-        (error) => assert(error?.name === 'FeatureUnavailableError', 'normal Skin Scan did not stay unavailable'),
-      ),
-      liveAnalysis.getAnalysisEligibility('normal-live-user').then(
-        () => { throw new Error('normal Analysis unexpectedly resolved') },
-        (error) => assert(error?.name === 'FeatureUnavailableError', 'normal Analysis did not stay unavailable'),
-      ),
-      liveBriefing.getTodayBriefing('normal-live-user').then(
-        () => { throw new Error('normal Briefing unexpectedly resolved') },
-        (error) => assert(error?.name === 'FeatureUnavailableError', 'normal Briefing did not stay unavailable'),
-      ),
+    const [normalScanResult, normalEligibility, normalBriefing] = await Promise.all([
+      liveSkinScan.analyzeSkin(demoImage, 'normal-live-user'),
+      liveAnalysis.getAnalysisEligibility('normal-live-user'),
+      liveBriefing.getTodayBriefing('normal-live-user'),
     ])
-    assert(liveBoundaryCalls.length === 0, 'normal mode called Persona-only APIs after identity initialization')
-    await liveSkinScan.analyzeSkin(demoImage, longTermUser.id)
-    assert(liveBoundaryCalls.length === 0, 'long-term demo Skin Scan called the backend')
+    assert(normalScanResult.id === 'live-normal-scan', 'normal Skin Scan did not use the live API')
+    assert(normalEligibility.requiredDays === 14, 'normal Analysis did not use the live API')
+    assert(normalBriefing.skinHeadline === '오늘 상태를 확인했어요.', 'normal Briefing did not use the live API')
+    assert(liveBoundaryCalls.length === 4, 'normal feature APIs did not make the expected live requests')
+    assert(liveBoundaryCalls.every((call) => call.authorization === 'Bearer real-backend-token'), 'normal feature API did not send the backend Bearer token')
+    assert(liveBoundaryCalls.every((call) => call.personaId === null), 'normal feature API leaked X-Mock-Persona-Id')
+    liveIdentity.clearActiveBackendToken()
+    liveBoundaryCalls.length = 0
+    const [demoLiveScan, demoLiveEligibility, demoLiveBriefing, demoLivePattern, demoLiveSos] = await Promise.all([
+      liveSkinScan.analyzeSkin(demoImage, longTermUser.id),
+      liveAnalysis.getAnalysisEligibility(longTermUser.id),
+      liveBriefing.getTodayBriefing(longTermUser.id),
+      liveAnalysis.getPatternAnalysis(longTermUser.id, 'scn_c1_20'),
+      liveSos.sendSOSMessage({ message: '오늘은 어떻게 관리할까요?', context: sosLongTerm }),
+    ])
+    await liveQuickInput.saveWaterChoice(longTermUser.id, '3_to_5')
+    await liveQuickInput.saveDietChoice(longTermUser.id, 'normal')
+    await liveNotifications.saveNotificationSettings(longTermUser.id, { morningBriefingEnabled: true })
+    assert(demoLiveScan.id === 'live-normal-scan' && demoLiveEligibility.requiredDays === 14, 'long-term demo Scan or Analysis did not use the live API')
+    assert(demoLivePattern?.scan_id === '94cbdd1a-bacd-4f7d-887f-69924fc9d369', 'long-term demo Pattern did not resolve the latest backend scan ID')
+    assert(demoLiveBriefing.skinHeadline === '오늘 상태를 확인했어요.' && demoLiveSos.message === 'Persona 데이터를 바탕으로 안내했어요.', 'long-term demo Briefing or SOS did not use the live API')
+    assert(liveBoundaryCalls.filter((call) => call.url.endsWith('/skin-scans') || call.url.endsWith('/skin-scans/live-normal-scan')).length === 2, 'long-term demo Skin Scan did not use the live API and polling flow')
+    assert(liveBoundaryCalls.every((call) => call.authorization === null && call.personaId === 'persona_003'), 'long-term demo Skin Scan did not use only X-Mock-Persona-Id')
+    liveBoundaryCalls.length = 0
     await liveProducts.getMyProducts(longTermUser.id)
     assert(liveBoundaryCalls.length === 0, 'long-term demo Shelf called the backend')
+    assert(liveIdentity.restoreNormalBackendIdentity('normal-live-user'), 'normal backend token could not be restored after Demo API calls')
     await liveProducts.getMyProducts('normal-live-user')
     assert(liveBoundaryCalls.some((call) => call.url.endsWith('/shelf/products')), 'normal Shelf did not call the live API')
     assert(liveBoundaryCalls.every((call) => call.authorization === 'Bearer real-backend-token'), 'normal Shelf did not send the backend Bearer token')
+    assert(liveBoundaryCalls.every((call) => call.personaId === null), 'normal Shelf leaked X-Mock-Persona-Id')
   } finally {
     globalThis.fetch = boundaryOriginalFetch
     await liveBoundaryServer.close()
@@ -888,7 +984,6 @@ try {
   const analysisServiceSource = await readFile(new URL('../src/services/analysisService.ts', import.meta.url), 'utf8')
   const analysisTypeSource = await readFile(new URL('../src/types/analysisReport.ts', import.meta.url), 'utf8')
   const demoSwitchSource = await readFile(new URL('../src/features/demo/DemoScenarioSwitch.tsx', import.meta.url), 'utf8')
-  const demoScenarioServiceSource = await readFile(new URL('../src/services/demoScenarioService.ts', import.meta.url), 'utf8')
   const notificationSectionSource = await readFile(new URL('../src/features/notifications/AndroidNotificationTestSection.tsx', import.meta.url), 'utf8')
   const notificationServiceSource = await readFile(new URL('../src/services/androidNotificationService.ts', import.meta.url), 'utf8')
   const settingsPageSource = await readFile(new URL('../src/pages/SettingsPage.tsx', import.meta.url), 'utf8')
@@ -924,9 +1019,9 @@ try {
   assert(homePageSource.includes('to="/settings"') && !homePageSource.includes('if (loadError)') && !homePageSource.includes('return <HomeLoadError'), 'Home API failure can still replace the AppHeader and Settings entry path')
   assert(homePageSource.includes('setBriefingError(true)') && homePageSource.includes('setRoutineError(true)') && homePageSource.includes('<HomeRoutineUnavailable />'), 'Home Briefing and Shelf failures are not isolated to their sections')
   assert(!/Promise\.all\(\[\s*getTodayBriefing\(user\.id\),\s*getTodayRoutineForUser\(user\.id\)/.test(homePageSource), 'Home still couples Briefing and Shelf failure in one request boundary')
-  assert(!settingsPageSource.includes('DemoScenarioSwitch'), 'Settings still exposes the normal-user mode selector in the submission build')
-  assert(appSource.includes('path="onboarding" element={<Navigate to="/home" replace />}') && !appSource.includes('OnboardingPage'), 'submission build still exposes the onboarding screen')
-  assert(onboardingPageSource.includes('resolveOnboardingCompletionTarget(user)') && onboardingPageSource.indexOf("completionTarget.mode === 'long_term'") < onboardingPageSource.indexOf('requiresNormalBackendIdentity(user.id)') && authServiceSource.includes('activeUser && isDemoPersonaUser(activeUser.id)'), 'active long-term mode is not resolved before normal backend onboarding work')
+  assert(settingsPageSource.includes('DemoScenarioSwitch') && settingsPageSource.includes("VITE_ENABLE_DEMO_SCENARIO === 'true'"), 'Settings does not expose the guarded experience-mode selector')
+  assert(appSource.includes('path="onboarding" element={<OnboardingPage />}') && appSource.includes('OnboardingPage'), 'normal-user onboarding route is missing')
+  assert(onboardingPageSource.includes('resolveOnboardingCompletionTarget(user)') && onboardingPageSource.indexOf("completionTarget.mode === 'long_term'") < onboardingPageSource.indexOf('ensureNormalBackendIdentity(user') && authServiceSource.includes('activeUser && isDemoPersonaUser(activeUser.id)'), 'active long-term mode is not resolved before normal backend onboarding work')
   assert(briefingPageSource.includes('isBriefingAvailableForUser') && briefingPageSource.includes('오늘 케어 안내를 준비 중이에요.'), 'normal Briefing does not render the unavailable state')
   assert(scanPageSource.includes('isSkinScanAvailableForUser') && scanPageSource.includes('현재 분석 기능을 준비 중이에요.'), 'normal Scan does not render the unavailable state')
   assert(analysisPageSource.includes('isAnalysisAvailableForUser') && analysisPageSource.includes('분석 기능을 준비 중이에요.') && triggerPageSource.includes('isAnalysisAvailableForUser'), 'normal Analysis routes do not render unavailable states')
@@ -936,7 +1031,7 @@ try {
   assert(analysisTypeSource.includes('sample_size: number') && analysisTypeSource.includes('match_count: number'), 'API Pattern occurrence counts are not required')
   assert(analysisTypeSource.includes("Partial<Pick<ObservedPattern, 'sample_size' | 'match_count'>>"), 'demo Pattern presentation cannot omit unavailable occurrence counts')
   assert(!/targetSkinEvent|nextAction|ReportTimelinePoint|skinSummary/.test(analysisTypeSource), 'deprecated Analysis API fields remain required')
-  assert(demoSwitchSource.includes('체험 모드') && demoScenarioServiceSource.includes('SUBMISSION_DEMO_SCENARIO') && !settingsPageSource.includes('DemoScenarioSwitch'), 'submission mode did not retain the switch code while removing its user-facing entry')
+  assert(demoSwitchSource.includes('체험 모드') && demoSwitchSource.includes('activateNormalMode') && demoSwitchSource.includes('activateDemoScenario') && settingsPageSource.includes('DemoScenarioSwitch'), 'normal/long-term experience switching is not wired through the shared scenario service')
   assert(scenario.isDemoScenarioEnabled('true') === true, 'demo flag true hid notification test controls')
   assert(scenario.isDemoScenarioEnabled('false') === false, 'demo flag false exposed notification test controls')
   assert(notificationSectionSource.includes('const showTestControls = isDemoScenarioEnabled()') && notificationSectionSource.includes('showTestControls &&') && notificationSectionSource.includes('>알림</h2>') && !notificationSectionSource.includes('알림 테스트'), 'notification test controls are not conditionally removed')
@@ -956,21 +1051,21 @@ try {
   assert(!/localStorage|sessionStorage|console\./.test(weatherConnectionSource), 'weather consent persists or logs transient coordinates')
   assert(weatherDataSource.includes('https://api.open-meteo.com/v1/forecast') && /temperature_2m,relative_humidity_2m,uv_index/.test(weatherDataSource) && /timezone: 'auto'/.test(weatherDataSource), 'weather data service does not use the Open-Meteo current contract')
   assert(androidLocationBridgeSource.includes("registerPlugin<EzkinLocationPlugin>('EzkinLocation')") && weatherDataSource.includes('androidLocationBridge.requestCurrentPosition()') && weatherDataSource.includes("Capacitor.getPlatform() === 'android'"), 'weather data service does not use the single transient native Android bridge')
-  assert(!weatherDataSource.includes('isDemoPersonaUser') && demoSwitchSource.includes('connectWeatherData(demoUser.id)'), 'long-term demo is still blocked from live Open-Meteo weather')
+  assert(!weatherDataSource.includes('isDemoPersonaUser') && briefingServiceSource.includes('await getCurrentWeatherData(userId)'), 'long-term demo is still blocked from live Open-Meteo weather')
   assert(weatherDataSource.includes('CapacitorWebFetch') && weatherDataSource.includes('WEATHER_REQUEST_TIMEOUT_MS = 3_000') && !weatherDataSource.includes('console.'), 'Android weather request logging or timeout is incorrect')
   assert(quickCareServiceSource.includes("apiRequest<unknown>('/quick-care/safety-check'") && !sosPageSource.includes('fetch('), 'Quick Care does not follow UI → service → api client')
   assert(sosServiceSource.includes('import.meta.env.VITE_USE_QUICK_CARE_API') && !sosServiceSource.includes('VITE_USE_MOCK_API'), 'Quick Care mode selection still depends on the global mock flag')
-  assert(sosServiceSource.includes('USE_QUICK_CARE_API && !isDemoUser') && sosServiceSource.includes('createDemoResponse'), 'long-term Demo SOS is not isolated from Quick Care')
+  assert(sosServiceSource.includes('const useQuickCareApi = USE_QUICK_CARE_API') && sosServiceSource.includes('const useLiveSos = USE_SOS_API') && sosServiceSource.includes('createDemoResponse'), 'long-term Demo SOS does not follow the feature flags')
   assert(careContextServiceSource.includes('import.meta.env.VITE_USE_CARE_CONTEXT_API') && !careContextServiceSource.includes('VITE_USE_MOCK_API'), 'Care Context mode selection depends on the global mock flag')
   assert(careContextServiceSource.includes("apiRequest<unknown>('/care-contexts/preview'") && !briefingServiceSource.includes("fetch(`${API_BASE_URL}/care-contexts"), 'Care Context does not follow service to api client architecture')
   assert(careContextServiceSource.includes('CARE_CONTEXT_TIMEOUT_MS = 1_500') && careContextServiceSource.includes('controller.abort()'), 'Care Context does not enforce the 1.5 second abort timeout')
   assert(homePageSource.indexOf('setBriefing(briefingData)') < homePageSource.lastIndexOf('applyCareContextToBriefing(briefingData, { userId: user.id })'), 'Home waits for Care Context before rendering the base Briefing')
-  assert(briefingPageSource.includes('applyCareContextToBriefing(briefingData, { userId: user.id })') && briefingServiceSource.includes('isDemoPersonaUser(options.userId)'), 'long-term Demo Care Context boundary is missing')
+  assert(briefingPageSource.includes('applyCareContextToBriefing(briefingData, { userId: user.id })') && !briefingServiceSource.includes('if (isDemoPersonaUser(options.userId)) return briefing'), 'long-term Demo is still bypassing enabled Care Context')
   assert(sosPageSource.includes('지금은 답변을 준비하지 못했어요.\\n잠시 후 다시 시도해 주세요.') && sosPageSource.includes('failedRequest.message'), 'SOS safety-check failure does not preserve the polished retryable message')
   assert(productServiceSource.includes('!isDemoPersonaUser(userId) && (USE_SHELF_API || !USE_MOCK_API)'), 'normal Shelf live API boundary is incorrect')
-  assert(skinScanServiceSource.includes('!isDemoPersonaUser(userId) && (USE_SKIN_SCAN_API || !USE_MOCK_API)') && skinScanServiceSource.includes("apiRequest<{ scan_id: string }>('/skin-scans'"), 'normal Skin Scan does not use the live /skin-scans boundary')
-  assert(analysisServiceSource.includes('!isDemoPersonaUser(userId) && (USE_ANALYSIS_API || !USE_MOCK_API)'), 'normal Analysis live API boundary is incorrect')
-  assert(briefingServiceSource.includes('!isDemoPersonaUser(userId) && (USE_BRIEFING_API || !USE_MOCK_API)'), 'normal Briefing live API boundary is incorrect')
+  assert(skinScanServiceSource.includes('USE_SKIN_SCAN_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)') && skinScanServiceSource.includes("apiRequest<{ scan_id: string }>('/skin-scans'"), 'Skin Scan feature flag does not enable the Persona API boundary')
+  assert(analysisServiceSource.includes('USE_ANALYSIS_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)'), 'Analysis feature flag does not enable the Persona API boundary')
+  assert(briefingServiceSource.includes('USE_BRIEFING_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)'), 'Briefing feature flag does not enable the Persona API boundary')
 
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/shelf/ceramide-cream', previousPathname: '/shelf', canGoBack: true }) === 'back', 'product detail back did not use route history')
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/settings', previousPathname: '/home', canGoBack: true }) === 'back', 'settings back did not use route history')
@@ -979,8 +1074,8 @@ try {
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/home', previousPathname: '/shelf', canGoBack: true }) === 'stay', 'home back did not stay in the app')
   assert(backNavigation.resolveAndroidBackAction({ pathname: '/onboarding', canGoBack: false }) === 'stay', 'onboarding first step did not stay in the app')
 
-  console.log('PASS fresh install defaults to backend-free long-term Demo Home')
-  console.log('PASS submission entry forces stored normal mode to backend-free long-term Demo')
+  console.log('PASS fresh install defaults to normal-user onboarding without an early backend call')
+  console.log('PASS stored normal mode restores the normal-user entry flow')
   console.log('PASS normal selection starts/restores onboarding and identity independently')
   console.log('PASS long-term prepared Health, Shelf, Report, Pattern, lifestyle, and SOS data')
   console.log('PASS normal/long-term isolation and mode persistence')

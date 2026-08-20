@@ -5,7 +5,7 @@ import type {
   WaterChoice,
 } from '../types/androidNotification'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
-import { getTodayDateKey, isDemoPersonaUser } from '../utils/appDateTime'
+import { getTodayDateKey } from '../utils/appDateTime'
 import { apiRequest } from './apiClient'
 
 const QUICK_INPUT_STORAGE_KEY = 'ezkin:daily-quick-inputs'
@@ -17,7 +17,7 @@ type DailyQuickInputPatch = Pick<DailyQuickInput, 'waterChoice' | 'dietChoice'> 
 }
 
 export interface QuickInputTransport {
-  save(payload: DailyManualMetricPayload & { date: string }): Promise<void>
+  save(payload: DailyManualMetricPayload & { date: string }, userId?: string): Promise<void>
 }
 
 export function isManualMetricsApiEnabled(
@@ -27,7 +27,7 @@ export function isManualMetricsApiEnabled(
 }
 
 const backendQuickInputTransport: QuickInputTransport = {
-  async save(payload) {
+  async save(payload, userId) {
     if (!payload.water_intake_level) {
       // 현재 Backend 계약은 water_intake_level을 필수로 요구합니다.
       return
@@ -39,7 +39,7 @@ const backendQuickInputTransport: QuickInputTransport = {
         water_intake_level: payload.water_intake_level,
         ...(payload.diet_flag ? { diet_flag: payload.diet_flag } : {}),
       }),
-    })
+    }, { personaId: userId })
   },
 }
 
@@ -158,7 +158,7 @@ export async function saveDailyQuickInput(
   }
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
-  if (isManualMetricsApiEnabled() && !isDemoPersonaUser(userId)) {
+  if (isManualMetricsApiEnabled()) {
     try {
       await syncDailyQuickInput(next, backendQuickInputTransport)
     } catch {
@@ -189,7 +189,7 @@ export async function syncDailyQuickInput(
   await transport.save({
     date: input.date,
     ...toDailyManualMetricPayload(input),
-  })
+  }, input.userId)
 }
 
 export async function saveWaterChoice(

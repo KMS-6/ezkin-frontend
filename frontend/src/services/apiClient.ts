@@ -7,8 +7,11 @@ interface StoredSession {
 }
 
 const BACKEND_PERSONA_IDS: Readonly<Record<string, string>> = {
-  'ezkin-demo-user': 'persona_001',
   persona_long_term_yeonseo: 'persona_003',
+}
+
+function resolveBackendPersonaId(userId: string | undefined): string | null {
+  return userId ? BACKEND_PERSONA_IDS[userId] ?? null : null
 }
 
 function getActivePersonaId(): string | null {
@@ -16,7 +19,7 @@ function getActivePersonaId(): string | null {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as StoredSession | null
     const userId = session?.user?.id
     if (typeof userId !== 'string') return null
-    return BACKEND_PERSONA_IDS[userId] ?? userId
+    return resolveBackendPersonaId(userId)
   } catch {
     return null
   }
@@ -57,10 +60,10 @@ export async function apiRequest<T>(
   const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`)
   const explicitPersonaId = options.personaId
-  const personaId = options.includePersona === false
+  const personaId = token || options.includePersona === false
     ? null
     : explicitPersonaId
-      ? BACKEND_PERSONA_IDS[explicitPersonaId] ?? explicitPersonaId
+      ? resolveBackendPersonaId(explicitPersonaId)
       : getActivePersonaId()
   if (personaId && !headers.has('X-Mock-Persona-Id')) {
     headers.set('X-Mock-Persona-Id', personaId)

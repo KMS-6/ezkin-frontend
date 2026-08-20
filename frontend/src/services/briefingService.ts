@@ -8,6 +8,7 @@ import { isCareContextApiEnabled, previewCareContext } from './careContextServic
 import { getCurrentGreeting, getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData, type CurrentEnvironmentData } from './weatherDataService'
 import { apiRequest } from './apiClient'
+import { requireNormalBackendIdentity } from './backendIdentityService'
 import { requireFeatureAvailable } from './userFeatureAvailability'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -130,17 +131,9 @@ async function applyCurrentEnvironment(
   if (!userId) return briefing
 
   const profile = await getOnboardingProfile(userId)
-  const persona = getMockPersona(userId)
   const healthMetrics = briefing.metrics.filter((metric) => metric.source === 'health')
   const environment = profile.weatherConnected
-    ? persona?.weather
-      ? {
-          observedAt: persona.weather.observed_at,
-          temperatureC: persona.weather.temperature_c,
-          humidityPercent: persona.weather.humidity_percent,
-          uvIndex: persona.weather.uv_index,
-        }
-      : await getCurrentWeatherData(userId)
+    ? await getCurrentWeatherData(userId)
     : undefined
   const environmentMetrics = environment ? mapCurrentEnvironmentMetrics(environment) : []
 
@@ -226,7 +219,6 @@ export async function applyCareContextToBriefing(
   briefing: BriefingData,
   options: CareContextBriefingOptions,
 ): Promise<BriefingData> {
-  if (isDemoPersonaUser(options.userId)) return briefing
   const enabled = options.enabled ?? isCareContextApiEnabled()
   if (!enabled) return briefing
 
@@ -314,9 +306,14 @@ async function getMockTodayBriefing(userId?: string): Promise<BriefingData> {
 
 async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
   requireFeatureAvailable('briefing', userId)
-  const useLiveBriefing = !isDemoPersonaUser(userId) && (USE_BRIEFING_API || !USE_MOCK_API)
+  const useLiveBriefing = USE_BRIEFING_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)
   if (!useLiveBriefing) return getMockTodayBriefing(userId)
-  const response = await apiRequest<BackendBriefingReady | BackendBriefingPending>('/briefings/today')
+  if (!isDemoPersonaUser(userId)) requireNormalBackendIdentity(userId)
+  const response = await apiRequest<BackendBriefingReady | BackendBriefingPending>(
+    '/briefings/today',
+    {},
+    { personaId: userId },
+  )
   return mapBackendBriefing(response)
 }
 

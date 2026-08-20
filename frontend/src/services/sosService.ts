@@ -80,7 +80,11 @@ function clearStoredSessionId(userId: string): void {
 async function getOrCreateLiveSession(userId: string): Promise<string> {
   const stored = getStoredSessionId(userId)
   if (stored) return stored
-  const created = await apiRequest<{ session_id: string }>('/sos/sessions', { method: 'POST' })
+  const created = await apiRequest<{ session_id: string }>(
+    '/sos/sessions',
+    { method: 'POST' },
+    { personaId: userId },
+  )
   storeSessionId(userId, created.session_id)
   return created.session_id
 }
@@ -92,7 +96,7 @@ async function createLiveResponse(message: string, context: SOSContext): Promise
   }>(`/sos/sessions/${encodeURIComponent(sessionId)}/messages`, {
     method: 'POST',
     body: JSON.stringify({ message }),
-  })
+  }, { personaId: context.userId })
   let sessionId = await getOrCreateLiveSession(context.userId)
   let response: Awaited<ReturnType<typeof send>>
   try {
@@ -232,9 +236,8 @@ export async function sendSOSMessage(
 ): Promise<SendSOSMessageResponse> {
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
-  const isDemoUser = isDemoPersonaUser(request.context.userId)
-  const useQuickCareApi = USE_QUICK_CARE_API && !isDemoUser
-  const useLiveSos = USE_SOS_API && !isDemoUser
+  const useQuickCareApi = USE_QUICK_CARE_API
+  const useLiveSos = USE_SOS_API
 
   if (!useQuickCareApi && !useLiveSos) {
     await wait(850)
@@ -247,7 +250,7 @@ export async function sendSOSMessage(
     useQuickCareApi,
     useLiveSos
       ? { generalResponder: createLiveResponse }
-      : isDemoUser
+      : isDemoPersonaUser(request.context.userId)
         ? { generalResponder: createDemoResponse }
         : {},
   )

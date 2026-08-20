@@ -1,4 +1,4 @@
-import type { HealthConnection, HealthDataSnapshot } from '../types/healthConnection'
+import type { HealthConnection } from '../types/healthConnection'
 import { getMockPersona } from '../mocks/personas'
 import { getOnboardingProfile, saveConnectionSettings } from './onboardingService'
 import { isDemoPersonaUser } from '../utils/appDateTime'
@@ -6,21 +6,6 @@ import { isDemoPersonaUser } from '../utils/appDateTime'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
 const TOKEN_KEY = 'ezkin:access-token'
-
-const demoMetrics = {
-  sleep_hours: true,
-  hrv_ms: true,
-  active_energy_kcal: true,
-}
-
-export function getNormalHealthMockSnapshot(now = new Date()): HealthDataSnapshot {
-  return {
-    collectedAt: now.toISOString(),
-    sleep_hours: 6.4,
-    hrv_ms: 47,
-    active_energy_kcal: 420,
-  }
-}
 
 const unavailableMetrics = {
   sleep_hours: false,
@@ -60,7 +45,7 @@ export async function getHealthConnection(userId: string): Promise<HealthConnect
     sleep_hours: persona.current_health?.sleep_hours !== undefined,
     hrv_ms: persona.current_health?.hrv_ms !== undefined,
     active_energy_kcal: persona.current_health?.active_energy_kcal !== undefined,
-  } : demoMetrics
+  } : unavailableMetrics
   return {
     provider: 'demo',
     status: profile.lifeDataConnected ? 'connected' : 'not_requested',
@@ -85,7 +70,7 @@ export async function connectHealthData(userId: string): Promise<HealthConnectio
     sleep_hours: persona.current_health?.sleep_hours !== undefined,
     hrv_ms: persona.current_health?.hrv_ms !== undefined,
     active_energy_kcal: persona.current_health?.active_energy_kcal !== undefined,
-  } : demoMetrics
+  } : unavailableMetrics
 
   return {
     provider: 'demo',

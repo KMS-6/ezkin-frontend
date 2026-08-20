@@ -173,7 +173,7 @@ function ReportContent({ report, isDemo }: { report: AnalysisReport; isDemo: boo
   return (
     <>
       <section className="rounded-[24px] border border-[#ddd3ff] bg-[#f1edff] p-5 shadow-hero">
-        {isDemo && <p className="mb-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-bold text-ez-primary">장기 사용자 Mock 데이터</p>}
+        {isDemo && <p className="mb-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-bold text-ez-primary">장기 사용자 데모</p>}
         <p className="flex items-center gap-1.5 text-[11px] font-semibold text-ez-primary">
           <CalendarDays size={14} aria-hidden="true" /> 최근 {report.period}일 리포트
         </p>

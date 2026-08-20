@@ -2,6 +2,7 @@ import { createMockSkinScanResult } from '../mocks/skinScan'
 import type { RecentTriggerAnalysisReference, SkinScanResult } from '../types/skinScan'
 import { getScanTimestamp, isDemoPersonaUser } from '../utils/appDateTime'
 import { apiRequest } from './apiClient'
+import { requireNormalBackendIdentity } from './backendIdentityService'
 import { requireFeatureAvailable } from './userFeatureAvailability'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -47,11 +48,12 @@ export async function analyzeSkin(image: Blob | File, userId?: string): Promise<
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
   requireFeatureAvailable('skinScan', userId)
 
-  const useLiveSkinScan = !isDemoPersonaUser(userId) && (USE_SKIN_SCAN_API || !USE_MOCK_API)
+  const useLiveSkinScan = USE_SKIN_SCAN_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)
   if (!useLiveSkinScan) {
     await wait(1100)
     return createMockSkinScanResult(getScanTimestamp(userId))
   }
+  if (!isDemoPersonaUser(userId)) requireNormalBackendIdentity(userId)
 
   const body = new FormData()
   body.append('image', image, image instanceof File ? image.name : 'skin-scan.jpg')

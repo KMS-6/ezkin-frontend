@@ -8,6 +8,7 @@ import type {
 } from '../types/analysisReport'
 import { getRecentTriggerAnalysisReference } from './skinScanService'
 import { apiRequest } from './apiClient'
+import { requireNormalBackendIdentity } from './backendIdentityService'
 import { isDemoPersonaUser } from '../utils/appDateTime'
 import { requireFeatureAvailable } from './userFeatureAvailability'
 
@@ -44,7 +45,7 @@ function getMockPattern(userId: string): TriggerAnalysisDetail | null {
 }
 
 function shouldUseLiveAnalysis(userId: string): boolean {
-  return !isDemoPersonaUser(userId) && (USE_ANALYSIS_API || !USE_MOCK_API)
+  return USE_ANALYSIS_API || (!isDemoPersonaUser(userId) && !USE_MOCK_API)
 }
 
 interface BackendEligibility {
@@ -53,9 +54,34 @@ interface BackendEligibility {
   eligible: boolean
 }
 
-async function requestPatternAnalysis(scanId: string): Promise<PatternAnalysis | null> {
+interface BackendSkinScanList {
+  items: Array<{
+    scan_id: string
+    status: string
+    captured_at: string
+  }>
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+async function resolveLivePatternScanId(userId: string, scanId: string): Promise<string | null> {
+  if (UUID_PATTERN.test(scanId) || !isDemoPersonaUser(userId)) return scanId
+
+  const scans = await apiRequest<BackendSkinScanList>(
+    '/skin-scans?limit=20',
+    {},
+    { personaId: userId },
+  )
+  return scans.items.find((scan) => scan.status === 'completed')?.scan_id ?? null
+}
+
+async function requestPatternAnalysis(scanId: string, userId: string): Promise<PatternAnalysis | null> {
   try {
-    return await apiRequest<PatternAnalysis>(`/pattern-analysis?scan_id=${encodeURIComponent(scanId)}`)
+    return await apiRequest<PatternAnalysis>(
+      `/pattern-analysis?scan_id=${encodeURIComponent(scanId)}`,
+      {},
+      { personaId: userId },
+    )
   } catch (error) {
     if (error && typeof error === 'object' && 'status' in error && error.status === 409) return null
     throw error
@@ -65,7 +91,12 @@ async function requestPatternAnalysis(scanId: string): Promise<PatternAnalysis |
 export async function getAnalysisEligibility(userId: string): Promise<AnalysisEligibility> {
   requireFeatureAvailable('analysis', userId)
   if (shouldUseLiveAnalysis(userId)) {
-    const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
+    if (!isDemoPersonaUser(userId)) requireNormalBackendIdentity(userId)
+    const response = await apiRequest<BackendEligibility>(
+      '/analysis/eligibility',
+      {},
+      { personaId: userId },
+    )
     return {
       dataDays: response.available_days,
       requiredDays: response.required_days,
@@ -81,13 +112,14 @@ export async function getAnalysisReport(
 ): Promise<AnalysisReport | null> {
   requireFeatureAvailable('analysis', userId)
   if (shouldUseLiveAnalysis(userId)) {
+    if (!isDemoPersonaUser(userId)) requireNormalBackendIdentity(userId)
     const created = await apiRequest<{ report_id: string }>('/reports', {
       method: 'POST',
       body: JSON.stringify({ period_days: period, locale: 'ko-KR' }),
-    })
+    }, { personaId: userId })
     const report = await apiRequest<Omit<AnalysisReport, 'period'> & {
       period: { period_days: AnalysisPeriod }
-    }>(`/reports/${created.report_id}`)
+    }>(`/reports/${created.report_id}`, {}, { personaId: userId })
     return { ...report, period: report.period.period_days }
   }
   return getMockReport(userId, period)
@@ -99,7 +131,9 @@ export async function getPatternAnalysis(
 ): Promise<TriggerAnalysisDetail | null> {
   requireFeatureAvailable('analysis', userId)
   if (shouldUseLiveAnalysis(userId)) {
-    return requestPatternAnalysis(scanId)
+    if (!isDemoPersonaUser(userId)) requireNormalBackendIdentity(userId)
+    const liveScanId = await resolveLivePatternScanId(userId, scanId)
+    return liveScanId ? requestPatternAnalysis(liveScanId, userId) : null
   }
   if (!scanId) return null
   const mockPattern = getMockPattern(userId)

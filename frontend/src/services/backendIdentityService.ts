@@ -5,7 +5,14 @@ import { getOrCreateNormalUserEmail } from './normalUserIdentityService'
 
 const NORMAL_BACKEND_IDENTITY_KEY = 'ezkin:normal-backend-identity'
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
+const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
 const USE_SHELF_API = import.meta.env.VITE_USE_SHELF_API === 'true'
+const USE_MANUAL_METRICS_API = import.meta.env.VITE_USE_MANUAL_METRICS_API === 'true'
+const USE_BRIEFING_API = import.meta.env.VITE_USE_BRIEFING_API === 'true'
+const USE_ANALYSIS_API = import.meta.env.VITE_USE_ANALYSIS_API === 'true'
+const USE_SKIN_SCAN_API = import.meta.env.VITE_USE_SKIN_SCAN_API === 'true'
+const USE_SOS_API = import.meta.env.VITE_USE_SOS_API === 'true'
+const USE_NOTIFICATION_SETTINGS_API = import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API === 'true'
 
 interface BackendUserResponse {
   id: string
@@ -35,7 +42,16 @@ export class BackendIdentityRequiredError extends Error {
 }
 
 export function requiresNormalBackendIdentity(userId: string): boolean {
-  return !isDemoPersonaUser(userId) && (USE_SHELF_API || !USE_MOCK_API)
+  const usesAuthenticatedApi = !USE_MOCK_API
+    || USE_ONBOARDING_API
+    || USE_SHELF_API
+    || USE_MANUAL_METRICS_API
+    || USE_BRIEFING_API
+    || USE_ANALYSIS_API
+    || USE_SKIN_SCAN_API
+    || USE_SOS_API
+    || USE_NOTIFICATION_SETTINGS_API
+  return !isDemoPersonaUser(userId) && usesAuthenticatedApi
 }
 
 function readStoredIdentity(): NormalBackendIdentity | null {

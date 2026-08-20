@@ -11,7 +11,6 @@ import { getMockPersona } from '../mocks/personas'
 import { formatDietChoice } from '../utils/dietChoice'
 import { getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData } from './weatherDataService'
-import { getNormalHealthMockSnapshot } from './healthConnectionService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -97,7 +96,7 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
       : Promise.resolve(undefined),
   ])
 
-  const healthSnapshot = persona?.current_health ?? (!persona ? getNormalHealthMockSnapshot() : undefined)
+  const healthSnapshot = persona?.current_health
   const lifestyleEntries = connections.lifeDataConnected
     ? healthSnapshot
       ? [
