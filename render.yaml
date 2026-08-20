@@ -1,29 +1,6 @@
 services:
   - type: web
-    name: wize-api
-    runtime: docker
-    plan: free
-    region: singapore
-    branch: main
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    healthCheckPath: /health
-    autoDeployTrigger: checksPass
-    envVars:
-      - key: AAC_DATABASE_URL
-        fromDatabase:
-          name: wize-db
-          property: connectionString
-      - key: AAC_API_PREFIX
-        value: /api/v1
-      - key: AAC_DEBUG
-        value: "false"
-      - key: AAC_CORS_ORIGINS
-        sync: false
-
-  - type: web
-    name: wize-web
+    name: ezkin-frontend
     runtime: static
     branch: main
     rootDir: frontend
@@ -39,11 +16,3 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
-
-databases:
-  - name: wize-db
-    plan: free
-    region: singapore
-    databaseName: wize
-    user: wize
-    postgresMajorVersion: "17"

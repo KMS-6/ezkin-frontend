@@ -32,46 +32,9 @@ jobs:
       - run: npm run test:entry
       - run: npm run build
 
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_DB: aac
-          POSTGRES_USER: aac
-          POSTGRES_PASSWORD: ci-only-password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U aac -d aac"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    env:
-      AAC_DATABASE_URL: postgresql+asyncpg://aac:ci-only-password@localhost:5432/aac
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.8.13"
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-      - run: uv sync --frozen
-      - run: uv run ruff format --check .
-      - run: uv run ruff check .
-      - run: uv run alembic upgrade head
-      - run: uv run pytest
-
   deployment-config:
     name: Deployment config
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: ruby -e 'require "yaml"; YAML.load_file("render.yaml")'
-      - run: docker compose -f backend/compose.yaml config --quiet
-      - run: docker build -t wize-api:ci backend
