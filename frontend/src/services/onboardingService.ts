@@ -134,7 +134,7 @@ export function saveConnectionSettings(
 ): Promise<OnboardingProfile> {
   return saveProfileUpdate(userId, settings).then(async (profile) => {
     if ((USE_ONBOARDING_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
-      await Promise.all([
+      const sync = Promise.all([
         apiRequest('/consents/apple_health', {
           method: 'PUT',
           body: JSON.stringify({ consented: settings.lifeDataConnected }),
@@ -144,6 +144,8 @@ export function saveConnectionSettings(
           body: JSON.stringify({ consented: settings.weatherConnected }),
         }, { personaId: userId }),
       ])
+      if (isDemoPersonaUser(userId)) await sync.catch(() => undefined)
+      else await sync
     }
     return profile
   })
@@ -160,7 +162,7 @@ export async function completeOnboardingProfile(userId: string): Promise<Onboard
       oiliness: 'cn_oily_tzone',
       dryness: 'cn_dryness',
     }
-    await apiRequest('/onboarding/profile', {
+    const sync = apiRequest('/onboarding/profile', {
       method: 'POST',
       body: JSON.stringify({
         skin_concern_ids: profile.selectedConcerns
@@ -170,6 +172,8 @@ export async function completeOnboardingProfile(userId: string): Promise<Onboard
         menstrual_cycle_tracking: profile.healthConcerns.includes('cycle_related'),
       }),
     }, { personaId: userId })
+    if (isDemoPersonaUser(userId)) await sync.catch(() => undefined)
+    else await sync
   }
   return profile
 }

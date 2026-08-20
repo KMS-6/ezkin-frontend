@@ -243,9 +243,7 @@ export async function applyCareContextToBriefing(
   }
 }
 
-async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
-  const useLiveBriefing = !USE_MOCK_API || (USE_BRIEFING_API && isDemoPersonaUser(userId))
-  if (!useLiveBriefing) {
+async function getMockTodayBriefing(userId?: string): Promise<BriefingData> {
     const profile = userId ? await getOnboardingProfile(userId) : null
     const persona = userId ? getMockPersona(userId) : null
     if (profile && persona) {
@@ -316,9 +314,19 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
       summary,
       ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
     })
+}
+
+async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
+  const useLiveBriefing = !USE_MOCK_API || (USE_BRIEFING_API && isDemoPersonaUser(userId))
+  if (!useLiveBriefing) return getMockTodayBriefing(userId)
+
+  try {
+    const response = await apiRequest<BackendBriefingReady | BackendBriefingPending>('/briefings/today')
+    return mapBackendBriefing(response)
+  } catch (error) {
+    if (!isDemoPersonaUser(userId)) throw error
+    return getMockTodayBriefing(userId)
   }
-  const response = await apiRequest<BackendBriefingReady | BackendBriefingPending>('/briefings/today')
-  return mapBackendBriefing(response)
 }
 
 export async function getTodayBriefing(userId?: string): Promise<BriefingData> {

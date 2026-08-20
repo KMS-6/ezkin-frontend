@@ -159,7 +159,7 @@ export async function saveDailyQuickInput(
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
   if (isManualMetricsApiEnabled() && isDemoPersonaUser(userId)) {
-    await syncDailyQuickInput(next, backendQuickInputTransport)
+    await syncDailyQuickInput(next, backendQuickInputTransport).catch(() => undefined)
   }
   emitQuickInputSync(next)
   return next
