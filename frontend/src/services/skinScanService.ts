@@ -34,9 +34,9 @@ interface SkinScanApiResult {
   failure: { code: string; message: string; retryable: boolean } | null
 }
 
-async function waitForSkinScan(scanId: string): Promise<SkinScanApiResult> {
+async function waitForSkinScan(scanId: string, userId?: string): Promise<SkinScanApiResult> {
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    const result = await apiRequest<SkinScanApiResult>(`/skin-scans/${scanId}`)
+    const result = await apiRequest<SkinScanApiResult>(`/skin-scans/${scanId}`, {}, { personaId: userId })
     if (result.status !== 'processing') return result
     await wait(Math.max(1, result.retry_after_seconds ?? 3) * 1000)
   }
@@ -62,8 +62,8 @@ export async function analyzeSkin(image: Blob | File, userId?: string): Promise<
     method: 'POST',
     headers: { 'Idempotency-Key': crypto.randomUUID() },
     body,
-  })
-  const result = await waitForSkinScan(accepted.scan_id)
+  }, { personaId: userId })
+  const result = await waitForSkinScan(accepted.scan_id, userId)
   if (result.status === 'failed') {
     throw new Error(result.failure?.message ?? '피부 스캔을 분석하지 못했어요.')
   }

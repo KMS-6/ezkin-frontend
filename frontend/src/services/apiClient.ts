@@ -7,6 +7,7 @@ interface StoredSession {
 }
 
 const BACKEND_PERSONA_IDS: Readonly<Record<string, string>> = {
+  'ezkin-demo-user': 'persona_001',
   persona_long_term_yeonseo: 'persona_003',
 }
 
@@ -14,7 +15,7 @@ function getActivePersonaId(): string | null {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? 'null') as StoredSession | null
     const userId = session?.user?.id
-    if (typeof userId !== 'string' || !userId.startsWith('persona_')) return null
+    if (typeof userId !== 'string') return null
     return BACKEND_PERSONA_IDS[userId] ?? userId
   } catch {
     return null

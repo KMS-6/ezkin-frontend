@@ -17,7 +17,7 @@ export function isBriefingAvailableForUser(userId?: string): boolean {
 }
 
 export function isSkinScanAvailableForUser(userId?: string): boolean {
-  return isDemoPersonaUser(userId)
+  return Boolean(userId)
 }
 
 export function isAnalysisAvailableForUser(userId?: string): boolean {
