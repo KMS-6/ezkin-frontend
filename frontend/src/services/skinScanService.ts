@@ -1,10 +1,10 @@
 import { createMockSkinScanResult } from '../mocks/skinScan'
 import type { RecentTriggerAnalysisReference, SkinScanResult } from '../types/skinScan'
 import { getScanTimestamp } from '../utils/appDateTime'
+import { apiRequest } from './apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const TOKEN_KEY = 'ezkin:access-token'
+const USE_SKIN_SCAN_API = import.meta.env.VITE_USE_SKIN_SCAN_API === 'true'
 const TRIGGER_REFERENCE_STORAGE_KEY = 'ezkin:trigger-analysis-references'
 const latestResultByUser = new Map<string, SkinScanResult>()
 
@@ -26,25 +26,45 @@ function wait(milliseconds: number): Promise<void> {
 export async function analyzeSkin(image: Blob | File, userId?: string): Promise<SkinScanResult> {
   if (image.size === 0) throw new Error('A captured image is required for skin analysis.')
 
-  if (USE_MOCK_API) {
+  if (!USE_SKIN_SCAN_API && USE_MOCK_API) {
     await wait(1100)
     return createMockSkinScanResult(getScanTimestamp(userId))
   }
 
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-
   const body = new FormData()
   body.append('image', image, image instanceof File ? image.name : 'skin-scan.jpg')
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}/skin-scans/analyze`, {
+  body.append('capture_method', 'camera')
+  body.append('captured_at', getScanTimestamp(userId))
+  body.append('lighting_ok', 'true')
+  const accepted = await apiRequest<{ scan_id: string }>('/skin-scans', {
     method: 'POST',
-    credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
     body,
   })
-
-  if (!response.ok) throw new Error('피부 스캔을 분석하지 못했어요.')
-  return response.json() as Promise<SkinScanResult>
+  const result = await apiRequest<{
+    scan_id: string
+    status: string
+    created_at: string
+    scores: Record<string, number> | null
+    limitation_notice: string | null
+    failure: { message: string } | null
+  }>(`/skin-scans/${accepted.scan_id}`)
+  if (result.status === 'failed') {
+    throw new Error(result.failure?.message ?? '피부 스캔을 분석하지 못했어요.')
+  }
+  const scoreEntries = Object.entries(result.scores ?? {})
+  const observedAreas = scoreEntries
+    .filter(([, score]) => score >= 0.5)
+    .map(([area]) => area)
+  const highestScore = scoreEntries.reduce((highest, [, score]) => Math.max(highest, score), 0)
+  return {
+    id: result.scan_id,
+    capturedAt: result.created_at,
+    overallStatus: highestScore >= 0.7 ? '주의 관찰' : '안정적',
+    observedAreas,
+    summary: observedAreas.length > 0 ? `${observedAreas.join(', ')} 변화를 관찰했어요.` : '뚜렷한 변화를 관찰하지 못했어요.',
+    recommendation: result.limitation_notice ?? '오늘 상태를 참고해 자극적인 관리는 줄여주세요.',
+  }
 }
 
 export function rememberLatestSkinScanResult(userId: string, result: SkinScanResult): void {

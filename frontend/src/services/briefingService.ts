@@ -7,27 +7,78 @@ import { getOnboardingProfile } from './onboardingService'
 import { isCareContextApiEnabled, previewCareContext } from './careContextService'
 import { getCurrentGreeting, getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData, type CurrentEnvironmentData } from './weatherDataService'
+import { apiRequest } from './apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const TOKEN_KEY = 'ezkin:access-token'
+const USE_BRIEFING_API = import.meta.env.VITE_USE_BRIEFING_API === 'true'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
+interface BackendBriefingReady {
+  status: 'ready'
+  date: string
+  risk_level: string
+  headline: string
+  summary: string
+  contributing_factors: Array<{ type: string; text: string }>
+  data_coverage: Record<string, boolean>
+  limitation_notice: string
+}
+
+interface BackendBriefingPending {
+  status: 'pending'
+  date: string
+  generation_expected_at: string
+  previous_briefing: { headline: string; risk_level: string } | null
+}
+
+function mapBackendBriefing(response: BackendBriefingReady | BackendBriefingPending): BriefingData {
+  if (response.status === 'pending') {
+    return {
+      greeting: '좋은 아침이에요',
+      dateLabel: response.date,
+      weather: {},
+      skinHeadline: response.previous_briefing?.headline ?? '오늘 브리핑을 준비하고 있어요.',
+      riskLabel: '준비 중',
+      summary: '데이터를 정리한 뒤 오늘의 케어를 알려드릴게요.',
+      careTip: '잠시 후 다시 확인해주세요.',
+      metrics: [],
+      syncedSources: [],
+      syncedCount: 0,
+    }
+  }
+
+  const riskLabels: Record<string, string> = {
+    low: '편안한 상태',
+    moderate: '피부 변화 관찰',
+    high: '자극 가능성 높음',
+    very_high: '오늘은 자극을 줄여요',
+  }
+  const metrics: BriefingData['metrics'] = response.contributing_factors.map((factor, index) => {
+    const environment = factor.type === 'weather' || factor.type.includes('humidity') || factor.type.includes('uv')
+    return {
+      id: `${factor.type}-${index}`,
+      label: environment ? '환경' : '생활',
+      value: factor.text,
+      icon: environment ? 'humidity' : 'sleep',
+      source: environment ? 'environment' : 'health',
+      description: factor.text,
+    }
   })
-
-  if (!response.ok) throw new Error('오늘 브리핑을 불러오지 못했어요.')
-  if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  const syncedSources = Object.entries(response.data_coverage)
+    .filter(([, available]) => available)
+    .map(([source]) => source)
+  return {
+    greeting: '좋은 아침이에요',
+    dateLabel: response.date,
+    weather: {},
+    skinHeadline: response.headline,
+    riskLabel: riskLabels[response.risk_level] ?? '오늘 상태',
+    summary: response.summary,
+    careTip: response.limitation_notice,
+    metrics,
+    contributingFactors: metrics,
+    syncedSources,
+    syncedCount: syncedSources.length,
+  }
 }
 
 type CareContextRequester = (
@@ -193,7 +244,7 @@ export async function applyCareContextToBriefing(
 }
 
 async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
-  if (USE_MOCK_API) {
+  if (!USE_BRIEFING_API && USE_MOCK_API) {
     const profile = userId ? await getOnboardingProfile(userId) : null
     const persona = userId ? getMockPersona(userId) : null
     if (profile && persona) {
@@ -265,7 +316,8 @@ async function getBaseTodayBriefing(userId?: string): Promise<BriefingData> {
       ...(userId ? { dietChoice: getSavedDietChoice(userId) ?? undefined } : {}),
     })
   }
-  return request<BriefingData>('/briefing')
+  const response = await apiRequest<BackendBriefingReady | BackendBriefingPending>('/briefings/today')
+  return mapBackendBriefing(response)
 }
 
 export async function getTodayBriefing(userId?: string): Promise<BriefingData> {

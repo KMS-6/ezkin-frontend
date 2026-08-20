@@ -4,13 +4,14 @@ import { Card } from '../../components/ui/Card'
 import { isDemoScenarioEnabled } from '../../services/demoScenarioService'
 import {
   getNotificationPermissionStatus,
-  isAndroidNotificationAvailable,
+  isNotificationAvailable,
   requestNotificationPermission,
   sendEveningQuickInputTestNotification,
   sendMorningBriefingTestNotification,
   sendWeeklyScanTestNotification,
 } from '../../services/androidNotificationService'
 import type { AndroidNotificationPermissionStatus } from '../../types/androidNotification'
+import { getNotificationSettings, saveNotificationSettings } from '../../services/notificationSettingsService'
 
 interface AndroidNotificationTestSectionProps {
   userId: string
@@ -22,17 +23,20 @@ const permissionLabels: Record<AndroidNotificationPermissionStatus, string> = {
   prompt: '허용 안 됨',
   granted: '허용됨',
   denied: '허용 안 됨',
-  unsupported: 'Android 앱에서 사용',
+  unsupported: '이 환경에서는 사용 불가',
 }
 
 export function AndroidNotificationTestSection({ userId }: AndroidNotificationTestSectionProps) {
   const showTestControls = isDemoScenarioEnabled()
-  const isAvailable = isAndroidNotificationAvailable()
+  const isAvailable = isNotificationAvailable()
   const [permission, setPermission] = useState<AndroidNotificationPermissionStatus>(
     isAvailable ? 'prompt' : 'unsupported',
   )
   const [busy, setBusy] = useState<'permission' | TestKind | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [morningEnabled, setMorningEnabled] = useState(
+    () => getNotificationSettings(userId).morningBriefingEnabled,
+  )
 
   useEffect(() => {
     let isActive = true
@@ -77,6 +81,22 @@ export function AndroidNotificationTestSection({ userId }: AndroidNotificationTe
 
   const isDisabled = !isAvailable || busy !== null
 
+  const handleMorningSetting = async () => {
+    if (busy !== null) return
+    const next = !morningEnabled
+    setBusy('morning')
+    setFeedback(null)
+    try {
+      const saved = await saveNotificationSettings(userId, { morningBriefingEnabled: next })
+      setMorningEnabled(saved.morningBriefingEnabled)
+      setFeedback(saved.morningBriefingEnabled ? '아침 브리핑 알림을 켰어요.' : '아침 브리핑 알림을 껐어요.')
+    } catch {
+      setFeedback('알림 설정을 저장하지 못했어요.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <section className="mt-7">
       <div className="flex items-center justify-between gap-3">
@@ -93,11 +113,20 @@ export function AndroidNotificationTestSection({ userId }: AndroidNotificationTe
         <NotificationActionRow
           icon={<Bell size={17} aria-hidden="true" />}
           title={permission === 'granted' ? '알림 권한 허용됨' : '알림 권한 허용'}
-          description={isAvailable ? undefined : 'Android 앱에서 테스트할 수 있어요.'}
+          description={isAvailable ? '버튼을 눌렀을 때만 권한을 요청해요.' : 'Android 앱 또는 PWA에서 사용할 수 있어요.'}
           disabled={!isAvailable || busy !== null || permission === 'granted'}
           busy={busy === 'permission'}
           actionLabel={permission === 'granted' ? '허용됨' : '허용'}
           onClick={() => void handlePermission()}
+        />
+        <NotificationActionRow
+          icon={<Sunrise size={17} aria-hidden="true" />}
+          title="아침 브리핑 받기"
+          description="하루에 한 번, 필요한 케어만 알려드려요."
+          disabled={busy !== null}
+          busy={busy === 'morning'}
+          actionLabel={morningEnabled ? '켜짐' : '꺼짐'}
+          onClick={() => void handleMorningSetting()}
         />
         {showTestControls && (
           <>

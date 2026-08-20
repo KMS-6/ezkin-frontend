@@ -10,6 +10,7 @@ import type {
   PendingQuickInputs,
 } from '../types/androidNotification'
 import { getTodayDateKey } from '../utils/appDateTime'
+import { getPwaServiceWorkerRegistration } from './pwaService'
 
 const CHANNEL_ID = 'ezkin-daily-care'
 const MORNING_NOTIFICATION_ID = 2101
@@ -33,6 +34,11 @@ export function isAndroidNotificationAvailable(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
 }
 
+export function isNotificationAvailable(): boolean {
+  return isAndroidNotificationAvailable()
+    || (typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator)
+}
+
 function mapPermission(display: string): AndroidNotificationPermissionStatus {
   if (display === 'granted') return 'granted'
   if (display === 'denied') return 'denied'
@@ -40,13 +46,20 @@ function mapPermission(display: string): AndroidNotificationPermissionStatus {
 }
 
 export async function getNotificationPermissionStatus(): Promise<AndroidNotificationPermissionStatus> {
-  if (!isAndroidNotificationAvailable()) return 'unsupported'
+  if (!isAndroidNotificationAvailable()) {
+    if (!isNotificationAvailable()) return 'unsupported'
+    return mapPermission(Notification.permission)
+  }
   const permission = await LocalNotifications.checkPermissions()
   return mapPermission(permission.display)
 }
 
 export async function requestNotificationPermission(): Promise<AndroidNotificationPermissionStatus> {
-  if (!isAndroidNotificationAvailable()) return 'unsupported'
+  if (!isAndroidNotificationAvailable()) {
+    if (!isNotificationAvailable()) return 'unsupported'
+    if (Notification.permission !== 'default') return mapPermission(Notification.permission)
+    return mapPermission(await Notification.requestPermission())
+  }
 
   const current = await getNotificationPermissionStatus()
   if (current === 'granted' || current === 'denied') return current
@@ -70,8 +83,33 @@ function scheduledAt(): Date {
   return new Date(Date.now() + TEST_DELAY_MS)
 }
 
+async function showWebNotification(
+  title: string,
+  body: string,
+  route: string,
+  tag: string,
+): Promise<void> {
+  const registration = await getPwaServiceWorkerRegistration()
+  await registration.showNotification(title, {
+    body,
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
+    tag,
+    data: { route },
+  })
+}
+
 export async function sendMorningBriefingTestNotification(userId: string): Promise<void> {
   await requireNotificationPermission()
+  if (!isAndroidNotificationAvailable()) {
+    await showWebNotification(
+      '오늘은 피부를 조금 쉬게 해주세요.',
+      '수면이 짧고 공기가 건조했어요.',
+      '/briefing',
+      'ezkin-morning-briefing',
+    )
+    return
+  }
   await ensureNotificationChannel()
 
   const [briefing, routine] = await Promise.all([
@@ -110,6 +148,15 @@ export async function sendMorningBriefingTestNotification(userId: string): Promi
 
 export async function sendEveningQuickInputTestNotification(userId: string): Promise<void> {
   await requireNotificationPermission()
+  if (!isAndroidNotificationAvailable()) {
+    await showWebNotification(
+      '오늘 식사는 어땠어요?',
+      '앱에서 한두 번의 탭으로 간단히 알려주세요.',
+      '/quick-input/meal?meal=dinner',
+      'ezkin-meal-quick-input',
+    )
+    return
+  }
   await ensureNotificationChannel()
   await EzkinNotificationNative.scheduleEveningQuickInputTest({
     userId,
@@ -120,6 +167,15 @@ export async function sendEveningQuickInputTestNotification(userId: string): Pro
 
 export async function sendWeeklyScanTestNotification(): Promise<void> {
   await requireNotificationPermission()
+  if (!isAndroidNotificationAvailable()) {
+    await showWebNotification(
+      '이번 주 피부 변화를 확인해볼까요?',
+      '알림을 누르면 피부 스캔으로 이동해요.',
+      '/scan',
+      'ezkin-weekly-scan',
+    )
+    return
+  }
   await ensureNotificationChannel()
 
   await LocalNotifications.schedule({

@@ -7,45 +7,36 @@ import type {
   TriggerAnalysisDetail,
 } from '../types/analysisReport'
 import { getRecentTriggerAnalysisReference } from './skinScanService'
+import { apiRequest } from './apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const TOKEN_KEY = 'ezkin:access-token'
+const USE_ANALYSIS_API = import.meta.env.VITE_USE_ANALYSIS_API === 'true'
 const REQUIRED_DATA_DAYS = 14
 
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  })
-
-  if (!response.ok) throw new Error('피부 패턴을 불러오지 못했어요.')
-  return response.json() as Promise<T>
+interface BackendEligibility {
+  available_days: number
+  required_days: number
+  eligible: boolean
 }
 
 async function requestPatternAnalysis(scanId: string): Promise<PatternAnalysis | null> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}/pattern-analysis?scan_id=${encodeURIComponent(scanId)}`, {
-    credentials: 'include',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-  })
-  if (response.status === 409) return null
-  if (!response.ok) throw new Error('피부 패턴을 불러오지 못했어요.')
-  return response.json() as Promise<PatternAnalysis>
+  try {
+    return await apiRequest<PatternAnalysis>(`/pattern-analysis?scan_id=${encodeURIComponent(scanId)}`)
+  } catch (error) {
+    if (error && typeof error === 'object' && 'status' in error && error.status === 409) return null
+    throw error
+  }
 }
 
 export async function getAnalysisEligibility(userId: string): Promise<AnalysisEligibility> {
-  if (!USE_MOCK_API) return request<AnalysisEligibility>('/analysis/eligibility')
+  if (USE_ANALYSIS_API || !USE_MOCK_API) {
+    const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
+    return {
+      dataDays: response.available_days,
+      requiredDays: response.required_days,
+      eligible: response.eligible,
+    }
+  }
 
   const dataDays = getMockPersona(userId)?.service_usage_days ?? 1
   return Promise.resolve({
@@ -59,12 +50,15 @@ export async function getAnalysisReport(
   userId: string,
   period: AnalysisPeriod,
 ): Promise<AnalysisReport | null> {
-  if (!USE_MOCK_API) {
-    const created = await request<{ report_id: string }>('/reports', {
+  if (USE_ANALYSIS_API || !USE_MOCK_API) {
+    const created = await apiRequest<{ report_id: string }>('/reports', {
       method: 'POST',
-      body: JSON.stringify({ period }),
+      body: JSON.stringify({ period_days: period, locale: 'ko-KR' }),
     })
-    return request<AnalysisReport>(`/reports/${created.report_id}`)
+    const report = await apiRequest<Omit<AnalysisReport, 'period'> & {
+      period: { period_days: AnalysisPeriod }
+    }>(`/reports/${created.report_id}`)
+    return { ...report, period: report.period.period_days }
   }
 
   const report = getMockPersona(userId)?.reports[period]
@@ -82,7 +76,7 @@ export async function getPatternAnalysis(
   userId: string,
   scanId: string,
 ): Promise<TriggerAnalysisDetail | null> {
-  if (!USE_MOCK_API) {
+  if (USE_ANALYSIS_API || !USE_MOCK_API) {
     return requestPatternAnalysis(scanId)
   }
   if (!scanId) return null

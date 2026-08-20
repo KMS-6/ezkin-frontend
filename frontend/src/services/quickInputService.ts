@@ -6,6 +6,7 @@ import type {
 } from '../types/androidNotification'
 import { QUICK_INPUT_SYNCED_EVENT } from '../types/androidNotification'
 import { getTodayDateKey } from '../utils/appDateTime'
+import { apiRequest } from './apiClient'
 
 const QUICK_INPUT_STORAGE_KEY = 'ezkin:daily-quick-inputs'
 const LEGACY_WATER_STORAGE_KEY = 'ezkin:water-choices'
@@ -13,6 +14,33 @@ const LEGACY_DIET_STORAGE_KEY = 'ezkin:diet-choices'
 
 type DailyQuickInputPatch = Pick<DailyQuickInput, 'waterChoice' | 'dietChoice'> & {
   createdAt?: string
+}
+
+export interface QuickInputTransport {
+  save(payload: DailyManualMetricPayload & { date: string }): Promise<void>
+}
+
+export function isManualMetricsApiEnabled(
+  value = import.meta.env.VITE_USE_MANUAL_METRICS_API,
+): boolean {
+  return value === 'true'
+}
+
+const backendQuickInputTransport: QuickInputTransport = {
+  async save(payload) {
+    if (!payload.water_intake_level) {
+      // 현재 Backend 계약은 water_intake_level을 필수로 요구합니다.
+      return
+    }
+    await apiRequest('/daily-metrics/manual', {
+      method: 'POST',
+      body: JSON.stringify({
+        metric_date: payload.date,
+        water_intake_level: payload.water_intake_level,
+        ...(payload.diet_flag ? { diet_flag: payload.diet_flag } : {}),
+      }),
+    })
+  },
 }
 
 type StoredDailyQuickInput = Omit<DailyQuickInput, 'waterChoice' | 'dietChoice'> & {
@@ -130,6 +158,9 @@ export async function saveDailyQuickInput(
   }
 
   localStorage.setItem(QUICK_INPUT_STORAGE_KEY, JSON.stringify({ ...records, [key]: next }))
+  if (isManualMetricsApiEnabled()) {
+    await syncDailyQuickInput(next, backendQuickInputTransport)
+  }
   emitQuickInputSync(next)
   return next
 }
@@ -145,6 +176,16 @@ export function toDailyManualMetricPayload(input: DailyQuickInput): DailyManualM
     ...(input.waterChoice ? { water_intake_level: waterMap[input.waterChoice] } : {}),
     ...(input.dietChoice ? { diet_flag: input.dietChoice } : {}),
   }
+}
+
+export async function syncDailyQuickInput(
+  input: DailyQuickInput,
+  transport: QuickInputTransport,
+): Promise<void> {
+  await transport.save({
+    date: input.date,
+    ...toDailyManualMetricPayload(input),
+  })
 }
 
 export async function saveWaterChoice(

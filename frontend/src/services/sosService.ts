@@ -6,12 +6,15 @@ import type {
 import type { ProductCategory } from '../types/product'
 import type { QuickCareSafetyCheckResponse } from '../types/quickCare'
 import { checkQuickCareSafety } from './quickCareService'
+import { ApiClientError, apiRequest } from './apiClient'
 
 export function isQuickCareApiEnabled(value = import.meta.env.VITE_USE_QUICK_CARE_API): boolean {
   return value === 'true'
 }
 
 const USE_QUICK_CARE_API = isQuickCareApiEnabled()
+const USE_SOS_API = import.meta.env.VITE_USE_SOS_API === 'true'
+const SOS_SESSION_KEY = 'ezkin:sos-session'
 
 export type SOSServiceErrorCode = 'SAFETY_CHECK_FAILED' | 'GENERAL_RESPONSE_FAILED'
 
@@ -41,6 +44,68 @@ interface SOSFlowDependencies {
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function getStoredSessionId(userId: string): string | null {
+  try {
+    const sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+    return typeof sessions[userId] === 'string' ? sessions[userId] : null
+  } catch {
+    return null
+  }
+}
+
+function storeSessionId(userId: string, sessionId: string): void {
+  let sessions: Record<string, unknown> = {}
+  try {
+    sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+  } catch {
+    // 손상된 세션 저장소는 새 세션으로 교체합니다.
+  }
+  localStorage.setItem(SOS_SESSION_KEY, JSON.stringify({ ...sessions, [userId]: sessionId }))
+}
+
+function clearStoredSessionId(userId: string): void {
+  let sessions: Record<string, unknown> = {}
+  try {
+    sessions = JSON.parse(localStorage.getItem(SOS_SESSION_KEY) ?? '{}') as Record<string, unknown>
+  } catch {
+    return
+  }
+  delete sessions[userId]
+  localStorage.setItem(SOS_SESSION_KEY, JSON.stringify(sessions))
+}
+
+async function getOrCreateLiveSession(userId: string): Promise<string> {
+  const stored = getStoredSessionId(userId)
+  if (stored) return stored
+  const created = await apiRequest<{ session_id: string }>('/sos/sessions', { method: 'POST' })
+  storeSessionId(userId, created.session_id)
+  return created.session_id
+}
+
+async function createLiveResponse(message: string, context: SOSContext): Promise<SendSOSMessageResponse> {
+  const send = (sessionId: string) => apiRequest<{
+    reply: string
+    expert_referral_suggested: boolean
+  }>(`/sos/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  })
+  let sessionId = await getOrCreateLiveSession(context.userId)
+  let response: Awaited<ReturnType<typeof send>>
+  try {
+    response = await send(sessionId)
+  } catch (error) {
+    if (!(error instanceof ApiClientError) || error.status !== 404) throw error
+    clearStoredSessionId(context.userId)
+    sessionId = await getOrCreateLiveSession(context.userId)
+    response = await send(sessionId)
+  }
+  return {
+    message: response.reply,
+    professionalHelpSuggested: response.expert_referral_suggested,
+  }
 }
 
 function ownedRecommendedProduct(context: SOSContext, category?: ProductCategory): string | null {
@@ -133,11 +198,15 @@ export async function sendSOSMessage(
   const message = request.message.trim()
   if (!message) throw new Error('질문을 입력해주세요.')
 
-  if (!USE_QUICK_CARE_API) {
+  if (!USE_QUICK_CARE_API && !USE_SOS_API) {
     await wait(850)
     if (message === '__SOS_MOCK_ERROR__') {
       throw new SOSServiceError('GENERAL_RESPONSE_FAILED', 'SOS 답변을 불러오지 못했어요.')
     }
   }
-  return resolveSOSMessageWithSafetyGate({ ...request, message }, USE_QUICK_CARE_API)
+  return resolveSOSMessageWithSafetyGate(
+    { ...request, message },
+    USE_QUICK_CARE_API,
+    USE_SOS_API ? { generalResponder: createLiveResponse } : {},
+  )
 }

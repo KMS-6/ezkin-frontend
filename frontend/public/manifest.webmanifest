@@ -1,0 +1,19 @@
+{
+  "name": "EZkin",
+  "short_name": "EZkin",
+  "description": "Zero-effort daily skincare guidance",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f7fc",
+  "theme_color": "#6c4ccf",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

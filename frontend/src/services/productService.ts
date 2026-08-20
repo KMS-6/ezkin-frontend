@@ -9,27 +9,78 @@ import type {
   TodayProductRecommendation,
 } from '../types/product'
 import { getOnboardingProfile, saveProducts } from './onboardingService'
+import { apiRequest } from './apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
-const TOKEN_KEY = 'ezkin:access-token'
+const USE_SHELF_API = import.meta.env.VITE_USE_SHELF_API === 'true'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
+interface BackendShelfProduct {
+  id: string
+  brand: string
+  product_name: string
+  product_type: string
+  ingredients_raw: string[] | null
+}
 
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
+interface BackendPersonaCosmetic {
+  cosmetic_id: string
+  brand: string
+  product_name: string
+  product_type: string | null
+  ingredients_raw: string[] | null
+}
+
+const liveProductsById = new Map<string, Product>()
+
+function isPersonaUser(userId: string): boolean {
+  return userId.startsWith('persona_')
+}
+
+function normalizeCategory(value: string): Product['category'] {
+  if (value === 'moisturizer' || value === 'mask') return 'cream'
+  if (value === 'cleanser' || value === 'toner' || value === 'serum' || value === 'sunscreen') return value
+  return 'cream'
+}
+
+function backendProductToProduct(product: BackendShelfProduct): Product {
+  const category = normalizeCategory(product.product_type)
+  const labels: Record<Product['category'], string> = {
+    cleanser: '클렌저', toner: '토너', serum: '세럼', cream: '크림', sunscreen: '선크림',
+  }
+  return {
+    id: product.id,
+    name: product.product_name,
+    brand: product.brand,
+    category,
+    categoryLabel: labels[category],
+    ingredients: product.ingredients_raw ?? [],
+    usage: '제품 표시사항에 따라 사용해주세요.',
+  }
+}
+
+function personaCosmeticToProduct(product: BackendPersonaCosmetic): Product {
+  return backendProductToProduct({
+    id: product.cosmetic_id,
+    brand: product.brand,
+    product_name: product.product_name,
+    product_type: product.product_type ?? 'moisturizer',
+    ingredients_raw: product.ingredients_raw,
   })
+}
 
-  if (!response.ok) throw new Error('화장대 정보를 불러오지 못했어요.')
-  return response.json() as Promise<T>
+function rememberLiveProducts(products: Product[]): Product[] {
+  products.forEach((product) => liveProductsById.set(product.id, product))
+  return products
+}
+
+function productToBackendCreate(product: Product) {
+  return {
+    brand: product.brand,
+    product_name: product.name,
+    product_type: product.category === 'cream' ? 'moisturizer' : product.category,
+    ingredients_raw: product.ingredients,
+    registration_source: 'manual',
+  }
 }
 
 function getMockRecommendation(productId: string): TodayProductRecommendation {
@@ -43,12 +94,19 @@ function getMockRecommendation(productId: string): TodayProductRecommendation {
 }
 
 export async function getProductCatalog(): Promise<Product[]> {
-  if (USE_MOCK_API) return Promise.resolve(productCatalog)
-  return request<Product[]>('/products/catalog')
+  // Backend에는 아직 사용자용 전체 제품 검색 Catalog API가 없어 기본 Catalog를 사용합니다.
+  return Promise.resolve(productCatalog)
 }
 
 export async function getMyProducts(userId: string): Promise<Product[]> {
-  if (!USE_MOCK_API) return request<Product[]>('/users/me/products')
+  if (USE_SHELF_API || !USE_MOCK_API) {
+    if (isPersonaUser(userId)) {
+      const response = await apiRequest<{ items: BackendPersonaCosmetic[] }>('/cosmetics')
+      return rememberLiveProducts(response.items.map(personaCosmeticToProduct))
+    }
+    const response = await apiRequest<{ items: BackendShelfProduct[] }>('/shelf/products')
+    return rememberLiveProducts(response.items.map(backendProductToProduct))
+  }
 
   const profile = await getOnboardingProfile(userId)
   const registeredIds = new Set(profile.registeredProductIds)
@@ -56,11 +114,23 @@ export async function getMyProducts(userId: string): Promise<Product[]> {
 }
 
 export async function addMyProducts(userId: string, productIds: string[]): Promise<Product[]> {
-  if (!USE_MOCK_API) {
-    return request<Product[]>('/users/me/products', {
-      method: 'POST',
-      body: JSON.stringify({ productIds }),
-    })
+  if (USE_SHELF_API || !USE_MOCK_API) {
+    const selected = productCatalog.filter((product) => productIds.includes(product.id))
+    await Promise.all(selected.map((product) => {
+      if (isPersonaUser(userId)) {
+        const body = new FormData()
+        body.append('brand', product.brand)
+        body.append('product_name', product.name)
+        body.append('product_type', product.category === 'cream' ? 'moisturizer' : product.category)
+        body.append('ingredients_raw', JSON.stringify(product.ingredients))
+        return apiRequest('/cosmetics', { method: 'POST', body })
+      }
+      return apiRequest('/shelf/products', {
+        method: 'POST',
+        body: JSON.stringify(productToBackendCreate(product)),
+      })
+    }))
+    return getMyProducts(userId)
   }
 
   const profile = await getOnboardingProfile(userId)
@@ -70,9 +140,11 @@ export async function addMyProducts(userId: string, productIds: string[]): Promi
 }
 
 export async function getProductDetail(productId: string): Promise<Product | null> {
-  if (!USE_MOCK_API) {
+  if (USE_SHELF_API || !USE_MOCK_API) {
+    const cached = liveProductsById.get(productId)
+    if (cached) return cached
     try {
-      return await request<Product>(`/products/${productId}`)
+      return backendProductToProduct(await apiRequest<BackendShelfProduct>(`/shelf/products/${productId}`))
     } catch {
       return null
     }
@@ -86,13 +158,45 @@ export async function getTodayProductRecommendations(
 ): Promise<ProductWithRecommendation[]> {
   const products = await getMyProducts(userId)
   const persona = getMockPersona(userId)
-  const recommendations = USE_MOCK_API
-    ? persona?.product_recommendations ?? todayProductRecommendations
-    : await request<TodayProductRecommendation[]>('/recommendations/today')
+  const usesLiveShelf = USE_SHELF_API || !USE_MOCK_API
+  let recommendations: TodayProductRecommendation[]
+  if (usesLiveShelf && isPersonaUser(userId)) {
+    const briefing = await apiRequest<{
+      status: 'ready' | 'pending'
+      routine?: Array<{ order: number; cosmetic_id: string; note: string | null }>
+      skip?: Array<{ cosmetic_id: string; reason: string }>
+    }>('/briefings/today')
+    const routine = briefing.routine ?? []
+    const skipped = briefing.skip ?? []
+    recommendations = products.map((product) => {
+      const step = routine.find((item) => item.cosmetic_id === product.id)
+      const pause = skipped.find((item) => item.cosmetic_id === product.id)
+      if (step) return {
+        productId: product.id,
+        status: 'recommended',
+        summary: step.note ?? '오늘 루틴에 포함된 제품이에요.',
+        reason: '오늘 브리핑에 포함된 제품이에요.',
+        recommendedTime: 'BOTH',
+        routineStep: step.order,
+      }
+      if (pause) return {
+        productId: product.id,
+        status: 'pause',
+        summary: '오늘은 쉬어가요.',
+        reason: pause.reason,
+        recommendedTime: 'BOTH',
+      }
+      return getMockRecommendation(product.id)
+    })
+  } else if (usesLiveShelf) {
+    recommendations = products.map((product) => getMockRecommendation(product.id))
+  } else {
+    recommendations = persona?.product_recommendations ?? todayProductRecommendations
+  }
 
   return products.map((product) => {
     const recommendation = recommendations.find((item) => item.productId === product.id)
-    if (!recommendation && !USE_MOCK_API) {
+    if (!recommendation && usesLiveShelf) {
       throw new Error('제품 추천 응답이 완전하지 않아요.')
     }
 

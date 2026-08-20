@@ -97,7 +97,8 @@ final class EzkinNotificationHelper {
         NotificationCompat.Builder builder = baseBuilder(
             context,
             "오늘 물 얼마나 마셨어요?",
-            null
+            null,
+            "/quick-input/water"
         );
         builder
             .addAction(action(context, "3잔 미만", ACTION_WATER_UNDER_3, userId, date, 2211))
@@ -110,7 +111,8 @@ final class EzkinNotificationHelper {
         NotificationCompat.Builder builder = baseBuilder(
             context,
             "오늘 식단은 어땠어요?",
-            null
+            null,
+            "/quick-input/meal?meal=dinner"
         );
         builder
             .addAction(action(context, "평소대로", ACTION_DIET_NORMAL, userId, date, 2221))
@@ -120,17 +122,17 @@ final class EzkinNotificationHelper {
     }
 
     static void showComplete(Context context) {
-        NotificationCompat.Builder builder = baseBuilder(context, "오늘 기록 완료 ✓", null)
+        NotificationCompat.Builder builder = baseBuilder(context, "오늘 기록 완료 ✓", null, "/lifelog")
             .setAutoCancel(true)
             .setTimeoutAfter(5_000);
         notify(context, builder);
     }
 
-    private static NotificationCompat.Builder baseBuilder(Context context, String title, String body) {
+    private static NotificationCompat.Builder baseBuilder(Context context, String title, String body, String route) {
         Intent openIntent = new Intent(context, MainActivity.class);
         openIntent.setAction("com.wize.ezkin.notification.OPEN");
         openIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        openIntent.putExtra(EXTRA_ROUTE, "/lifelog");
+        openIntent.putExtra(EXTRA_ROUTE, route);
         PendingIntent contentIntent = PendingIntent.getActivity(
             context,
             2299,

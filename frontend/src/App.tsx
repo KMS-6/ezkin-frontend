@@ -13,6 +13,7 @@ import { ScanPage } from './pages/ScanPage'
 import { SosPage } from './pages/SosPage'
 import { ShelfPage } from './pages/ShelfPage'
 import { SplashPage } from './pages/SplashPage'
+import { QuickInputPage } from './pages/QuickInputPage'
 import { AndroidNotificationCoordinator } from './features/notifications/AndroidNotificationCoordinator'
 import { AndroidBackButtonCoordinator } from './features/navigation/AndroidBackButtonCoordinator'
 
@@ -35,6 +36,7 @@ function App() {
             <Route path="home" element={<HomePage />} />
             <Route path="briefing" element={<BriefingPage />} />
             <Route path="lifelog" element={<LifeLogPage />} />
+            <Route path="quick-input/:kind" element={<QuickInputPage />} />
             <Route path="scan" element={<ScanPage />} />
             <Route path="shelf" element={<ShelfPage />} />
             <Route path="shelf/:id" element={<ProductDetailPage />} />

@@ -6,11 +6,11 @@ import type {
   SkinType,
   SkinConcern,
 } from '../types/onboarding'
+import { apiRequest } from './apiClient'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
+const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
 const PROFILE_STORAGE_KEY = 'ezkin:onboarding-profiles'
-const TOKEN_KEY = 'ezkin:access-token'
 
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
 type StoredOnboardingProfile = Partial<OnboardingProfile> & { userId?: string }
@@ -96,39 +96,12 @@ function updateMockProfile(userId: string, update: ProfileUpdate): OnboardingPro
   return profile
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_BASE_URL) throw new Error('API 주소가 설정되지 않았어요.')
-
-  const token = localStorage.getItem(TOKEN_KEY)
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init?.headers,
-    },
-  })
-
-  if (!response.ok) throw new Error('온보딩 정보를 저장하지 못했어요.')
-  return response.json() as Promise<T>
-}
-
 async function saveProfileUpdate(userId: string, update: ProfileUpdate): Promise<OnboardingProfile> {
-  if (USE_MOCK_API) return Promise.resolve(updateMockProfile(userId, update))
-
-  return request<OnboardingProfile>('/users/me/onboarding', {
-    method: 'PATCH',
-    body: JSON.stringify(update),
-  })
+  return Promise.resolve(updateMockProfile(userId, update))
 }
 
 export async function getOnboardingProfile(userId: string): Promise<OnboardingProfile> {
-  if (USE_MOCK_API) {
-    return Promise.resolve(resolveMockProfile(userId, readMockProfiles()[userId]))
-  }
-
-  return request<OnboardingProfile>('/users/me/onboarding')
+  return Promise.resolve(resolveMockProfile(userId, readMockProfiles()[userId]))
 }
 
 export function saveCurrentStep(userId: string, currentStep: OnboardingStep): Promise<OnboardingProfile> {
@@ -158,14 +131,46 @@ export function saveConnectionSettings(
   userId: string,
   settings: ConnectionSettings,
 ): Promise<OnboardingProfile> {
-  return saveProfileUpdate(userId, settings)
+  return saveProfileUpdate(userId, settings).then(async (profile) => {
+    if (USE_ONBOARDING_API || !USE_MOCK_API) {
+      await Promise.all([
+        apiRequest('/consents/apple_health', {
+          method: 'PUT',
+          body: JSON.stringify({ consented: settings.lifeDataConnected }),
+        }),
+        apiRequest('/consents/weather_location', {
+          method: 'PUT',
+          body: JSON.stringify({ consented: settings.weatherConnected }),
+        }),
+      ])
+    }
+    return profile
+  })
 }
 
-export function completeOnboardingProfile(userId: string): Promise<OnboardingProfile> {
-  return saveProfileUpdate(userId, {
+export async function completeOnboardingProfile(userId: string): Promise<OnboardingProfile> {
+  const profile = await saveProfileUpdate(userId, {
     currentStep: 5,
     completedAt: new Date().toISOString(),
   })
+  if (USE_ONBOARDING_API || !USE_MOCK_API) {
+    const concernMap: Partial<Record<SkinConcern, string>> = {
+      breakouts: 'cn_acne',
+      oiliness: 'cn_oily_tzone',
+      dryness: 'cn_dryness',
+    }
+    await apiRequest('/onboarding/profile', {
+      method: 'POST',
+      body: JSON.stringify({
+        skin_concern_ids: profile.selectedConcerns
+          .map((concern) => concernMap[concern])
+          .filter((concern): concern is string => Boolean(concern)),
+        birth_year: profile.birthYear ?? null,
+        menstrual_cycle_tracking: profile.healthConcerns.includes('cycle_related'),
+      }),
+    })
+  }
+  return profile
 }
 
 export function resetDemoOnboardingProfile(userId: string): Promise<void> {
