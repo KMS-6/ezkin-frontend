@@ -6,7 +6,6 @@ import {
   demoScenarioOptions,
   getActiveDemoScenario,
 } from '../../services/demoScenarioService'
-import { connectWeatherData } from '../../services/weatherConnectionService'
 
 export function DemoScenarioSwitch() {
   const [switchingScenario, setSwitchingScenario] = useState<DemoScenario | 'normal' | null>(null)
@@ -21,8 +20,7 @@ export function DemoScenarioSwitch() {
 
     try {
       if (scenario) {
-        const demoUser = await activateDemoScenario(scenario)
-        await connectWeatherData(demoUser.id)
+        await activateDemoScenario(scenario)
       } else {
         await activateNormalMode()
       }

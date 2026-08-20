@@ -23,6 +23,7 @@ export const mockPersonas: Record<MockPersonaId, MockPersonaData> = {
     ],
     current_health: { collectedAt: '2026-08-14T22:00:00Z', sleep_hours: 4, hrv_ms: 33 },
     health_baseline: { sleep_hours: 6.1, hrv_ms: 50.6 },
+    weather: { observed_at: '2026-08-15T06:00:00+09:00', temperature_c: 26, humidity_percent: 23, uv_index: 2.5 },
     skin_scan: { scan_id: 'scn_c1_20', captured_at: '2026-08-14T08:00:00Z' },
     briefing: {
       risk_level: 'very_high',

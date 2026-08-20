@@ -13,6 +13,13 @@ import {
   signup as signupService,
 } from '../../services/authService'
 import { resolveDemoScenarioEntryUser } from '../../services/demoScenarioService'
+import {
+  ensureNormalBackendIdentity,
+  requiresNormalBackendIdentity,
+} from '../../services/backendIdentityService'
+import { getOnboardingProfile } from '../../services/onboardingService'
+import { syncPendingMyProducts } from '../../services/productService'
+import { isDemoPersonaUser } from '../../utils/appDateTime'
 import type { LoginRequest, SignupRequest, User } from '../../types/auth'
 import { AuthContext } from './authContextValue'
 import type { AuthContextValue } from './authContextValue'
@@ -30,6 +37,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     void getEntryUser()
       .then(resolveDemoScenarioEntryUser)
+      .then(async (currentUser) => {
+        if (
+          currentUser?.onboardingCompleted
+          && !isDemoPersonaUser(currentUser.id)
+          && requiresNormalBackendIdentity(currentUser.id)
+        ) {
+          try {
+            const profile = await getOnboardingProfile(currentUser.id)
+            await ensureNormalBackendIdentity(currentUser, profile.nickname ?? currentUser.nickname ?? '')
+            await syncPendingMyProducts(currentUser.id, profile.registeredProductIds)
+          } catch {
+            // Backend 연결 실패가 로컬 사용자 진입을 막지는 않습니다.
+          }
+        }
+        return currentUser
+      })
       .then((currentUser) => {
         if (isActive) setUser(currentUser)
       })

@@ -1,5 +1,3 @@
-import { isDemoPersonaUser } from '../utils/appDateTime'
-
 export type PersonaOnlyFeature = 'briefing' | 'skinScan' | 'analysis'
 
 export class FeatureUnavailableError extends Error {
@@ -13,7 +11,7 @@ export class FeatureUnavailableError extends Error {
 }
 
 export function isBriefingAvailableForUser(userId?: string): boolean {
-  return isDemoPersonaUser(userId)
+  return Boolean(userId)
 }
 
 export function isSkinScanAvailableForUser(userId?: string): boolean {
@@ -21,7 +19,7 @@ export function isSkinScanAvailableForUser(userId?: string): boolean {
 }
 
 export function isAnalysisAvailableForUser(userId?: string): boolean {
-  return isDemoPersonaUser(userId)
+  return Boolean(userId)
 }
 
 export function requireFeatureAvailable(

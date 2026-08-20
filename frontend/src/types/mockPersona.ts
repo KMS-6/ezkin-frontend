@@ -25,6 +25,12 @@ export interface MockPersonaData {
     sleep_hours?: number
     hrv_ms?: number
   }
+  weather?: {
+    observed_at: string
+    temperature_c: number
+    humidity_percent: number
+    uv_index: number
+  }
   skin_scan: {
     scan_id: string
     captured_at: string

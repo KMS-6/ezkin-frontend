@@ -11,6 +11,7 @@ import { getMockPersona } from '../mocks/personas'
 import { formatDietChoice } from '../utils/dietChoice'
 import { getTodayDateLabel, isDemoPersonaUser } from '../utils/appDateTime'
 import { getCurrentWeatherData } from './weatherDataService'
+import { getNormalHealthMockSnapshot } from './healthConnectionService'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -96,53 +97,42 @@ export async function getTodayLifeLog(userId: string): Promise<TodayLifeLog> {
       : Promise.resolve(undefined),
   ])
 
-  const sleep = briefing?.metrics.find((metric) => metric.id === 'sleep')
-
+  const healthSnapshot = persona?.current_health ?? (!persona ? getNormalHealthMockSnapshot() : undefined)
   const lifestyleEntries = connections.lifeDataConnected
-    ? persona?.current_health
+    ? healthSnapshot
       ? [
-          ...(persona.current_health.sleep_hours !== undefined ? [automaticEntry({
+          ...(healthSnapshot.sleep_hours !== undefined ? [automaticEntry({
             id: 'sleep',
             type: 'sleep',
             label: '수면',
-            value: String(persona.current_health.sleep_hours),
+            value: String(healthSnapshot.sleep_hours),
             unit: '시간',
-            ...(persona.health_baseline?.sleep_hours !== undefined
+            ...(persona?.health_baseline?.sleep_hours !== undefined
               ? { description: `평소 ${persona.health_baseline.sleep_hours}시간` }
               : {}),
           })] : []),
-          ...(persona.current_health.hrv_ms !== undefined ? [automaticEntry({
+          ...(healthSnapshot.hrv_ms !== undefined ? [automaticEntry({
             id: 'hrv',
             type: 'hrv',
             label: 'HRV',
-            value: String(persona.current_health.hrv_ms),
+            value: String(healthSnapshot.hrv_ms),
             unit: 'ms',
-            ...(persona.health_baseline?.hrv_ms !== undefined
+            ...(persona?.health_baseline?.hrv_ms !== undefined
               ? { description: '14일 평균보다 약 35% 낮음' }
               : {}),
           })] : []),
-          ...(persona.current_health.active_energy_kcal !== undefined ? [automaticEntry({
+          ...(healthSnapshot.active_energy_kcal !== undefined ? [automaticEntry({
             id: 'active-energy',
             type: 'active_energy_kcal',
             label: '활동',
-            value: String(persona.current_health.active_energy_kcal),
+            value: String(healthSnapshot.active_energy_kcal),
             unit: 'kcal',
           })] : []),
         ]
       : []
     : []
 
-  const fallbackLifestyleEntries = connections.lifeDataConnected && !persona
-    ? [
-        ...(sleep ? [automaticEntry({
-          id: sleep.id,
-          type: 'sleep',
-          label: sleep.label,
-          value: sleep.value,
-        })] : []),
-      ]
-    : []
-  const visibleLifestyleEntries = persona ? lifestyleEntries : fallbackLifestyleEntries
+  const visibleLifestyleEntries = lifestyleEntries
 
   const environmentEntries = connections.weatherConnected
     ? [

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { EZkinLogo } from '../../components/EZkinLogo'
-import { addMyProducts } from '../../services/productService'
+import { addMyProducts, syncPendingMyProducts } from '../../services/productService'
+import { ensureNormalBackendIdentity } from '../../services/backendIdentityService'
 import {
   resolveOnboardingCompletionTarget,
 } from '../../services/demoScenarioService'
@@ -195,6 +196,8 @@ export function OnboardingPage() {
         return
       }
 
+      await ensureNormalBackendIdentity(user, profile.nickname ?? '')
+      await syncPendingMyProducts(user.id, profile.registeredProductIds)
       await completeOnboardingProfile(user.id)
       await completeOnboarding()
       navigate('/home', { replace: true })

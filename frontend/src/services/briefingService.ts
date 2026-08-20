@@ -130,9 +130,17 @@ async function applyCurrentEnvironment(
   if (!userId) return briefing
 
   const profile = await getOnboardingProfile(userId)
+  const persona = getMockPersona(userId)
   const healthMetrics = briefing.metrics.filter((metric) => metric.source === 'health')
   const environment = profile.weatherConnected
-    ? await getCurrentWeatherData(userId)
+    ? persona?.weather
+      ? {
+          observedAt: persona.weather.observed_at,
+          temperatureC: persona.weather.temperature_c,
+          humidityPercent: persona.weather.humidity_percent,
+          uvIndex: persona.weather.uv_index,
+        }
+      : await getCurrentWeatherData(userId)
     : undefined
   const environmentMetrics = environment ? mapCurrentEnvironmentMetrics(environment) : []
 
