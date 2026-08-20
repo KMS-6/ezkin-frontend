@@ -61,10 +61,13 @@ export async function getAnalysisEligibility(userId: string): Promise<AnalysisEl
   if ((USE_ANALYSIS_API && isDemoPersonaUser(userId)) || !USE_MOCK_API) {
     try {
       const response = await apiRequest<BackendEligibility>('/analysis/eligibility')
+      const demoEligibility = isDemoPersonaUser(userId) ? getMockEligibility(userId) : null
+      const dataDays = Math.max(response.available_days, demoEligibility?.dataDays ?? 0)
+      const requiredDays = response.required_days
       return {
-        dataDays: response.available_days,
-        requiredDays: response.required_days,
-        eligible: response.eligible,
+        dataDays,
+        requiredDays,
+        eligible: response.eligible || dataDays >= requiredDays,
       }
     } catch (error) {
       if (!isDemoPersonaUser(userId)) throw error
