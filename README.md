@@ -42,7 +42,7 @@ EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프�
 - Skin Scan: 카메라 촬영 기반 피부 스캔 및 결과 확인
 - Trigger Analysis: 72시간 패턴 분석, 14일·30일 리포트
 - SOS Care: 위급 상황 안전 체크와 대화형 안내
-- Demo A/B/C 시나리오 및 실제 사용자 흐름 동시 지원
+- Demo 시나리오 및 실제 사용자 흐름 동시 지원
 
 화면별 상세 동작은 [`docs/product-overview.md`](docs/product-overview.md)를 참고합니다.
 
