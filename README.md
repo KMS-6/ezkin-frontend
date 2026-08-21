@@ -10,6 +10,7 @@ EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프�
 
 - [제품 개요 / 화면·기능 상세 / Backend 연동 Handoff](docs/product-overview.md)
 - [배포 가이드 (Render)](docs/deployment.md)
+- [현재 구현·API 연동·Mock 및 알려진 장애](docs/current-implementation-status.md)
 - [Git 워크플로 컨벤션](docs/conventions/git-workflow.md)
 - [Issue 컨벤션](docs/conventions/issue-convention.md)
 - [버전 관리 컨벤션](docs/conventions/versioning.md)
