@@ -68,6 +68,11 @@ try {
     nickname: 'API Smoke',
     onboardingCompleted: true,
   }, 'API Smoke')
+  await onboarding.saveConnectionSettings(smokeUserId, {
+    lifeDataConnected: false,
+    weatherConnected: true,
+  })
+  await onboarding.completeOnboardingProfile(smokeUserId)
 
   const [today, shelf, eligibility, safety, context, settings] = await Promise.all([
     briefing.getTodayBriefing(smokeUserId),
@@ -77,10 +82,6 @@ try {
     careContext.previewCareContext({ humidity: 35, uv_index: 4, user_reports_discomfort: false }),
     notifications.saveNotificationSettings(smokeUserId, { morningBriefingEnabled: true }),
   ])
-  await onboarding.saveConnectionSettings(smokeUserId, {
-    lifeDataConnected: false,
-    weatherConnected: true,
-  })
   await quickInput.saveWaterChoice(smokeUserId, '3_to_5')
   const dailyInput = await quickInput.saveDietChoice(smokeUserId, 'normal')
 

@@ -18,6 +18,7 @@ import {
   completeOnboardingProfile,
   saveBasicProfile,
   saveConcerns,
+  saveConnectionSettings,
   saveCurrentStep,
   saveSkinType,
 } from '../../services/onboardingService'
@@ -197,6 +198,10 @@ export function OnboardingPage() {
       }
 
       await ensureNormalBackendIdentity(user, profile.nickname ?? '')
+      await saveConnectionSettings(user.id, {
+        lifeDataConnected: profile.lifeDataConnected,
+        weatherConnected: profile.weatherConnected,
+      })
       await syncPendingMyProducts(user.id, profile.registeredProductIds)
       await completeOnboardingProfile(user.id)
       await completeOnboarding()

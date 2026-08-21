@@ -689,7 +689,7 @@ try {
       'import.meta.env.VITE_USE_CARE_CONTEXT_API': JSON.stringify('false'),
       'import.meta.env.VITE_USE_MANUAL_METRICS_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_SOS_API': JSON.stringify('true'),
-      'import.meta.env.VITE_USE_ONBOARDING_API': JSON.stringify('false'),
+      'import.meta.env.VITE_USE_ONBOARDING_API': JSON.stringify('true'),
       'import.meta.env.VITE_USE_NOTIFICATION_SETTINGS_API': JSON.stringify('true'),
     },
     server: { middlewareMode: true },
@@ -778,6 +778,15 @@ try {
         quick_replies: [],
       }), { status: 201, headers: { 'Content-Type': 'application/json' } })
     }
+    if (
+      (url.endsWith('/consents/apple_health') || url.endsWith('/consents/weather_location'))
+      && init.method === 'PUT'
+    ) {
+      return new Response(JSON.stringify({ consented: liveBoundaryCalls.at(-1)?.body?.consented }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
     if (url.endsWith('/sos/sessions/live-demo-session/messages') && init.method === 'POST') {
       return new Response(JSON.stringify({
         message_id: 'live-demo-message',
@@ -819,6 +828,7 @@ try {
     const liveSos = await liveBoundaryServer.ssrLoadModule('/src/services/sosService.ts')
     const liveQuickInput = await liveBoundaryServer.ssrLoadModule('/src/services/quickInputService.ts')
     const liveNotifications = await liveBoundaryServer.ssrLoadModule('/src/services/notificationSettingsService.ts')
+    const liveOnboarding = await liveBoundaryServer.ssrLoadModule('/src/services/onboardingService.ts')
 
     let uninitializedNormalScanRejected = false
     try {
@@ -839,6 +849,11 @@ try {
       ),
     ])
     assert(liveBoundaryCalls.length === 0, 'authenticated API requests escaped before identity initialization')
+    await liveOnboarding.saveConnectionSettings('normal-live-user', {
+      lifeDataConnected: true,
+      weatherConnected: true,
+    })
+    assert(liveBoundaryCalls.length === 0, 'onboarding connection settings synced before backend identity initialization')
 
     const liveNormalUser = {
       id: 'normal-live-user',
@@ -855,6 +870,14 @@ try {
     const registrationCount = liveBoundaryCalls.filter((call) => call.url.endsWith('/users')).length
     await liveIdentity.ensureNormalBackendIdentity(liveNormalUser, 'normal live')
     assert(liveBoundaryCalls.filter((call) => call.url.endsWith('/users')).length === registrationCount, 'existing normal backend identity triggered another POST /users')
+    await liveOnboarding.saveConnectionSettings('normal-live-user', {
+      lifeDataConnected: true,
+      weatherConnected: true,
+    })
+    const consentCalls = liveBoundaryCalls.filter((call) => call.url.includes('/consents/'))
+    assert(consentCalls.length === 2, 'onboarding connection settings were not synced after backend identity initialization')
+    assert(consentCalls.every((call) => call.authorization === 'Bearer real-backend-token'), 'onboarding consent sync did not use the backend Bearer token')
+    assert(consentCalls.every((call) => call.personaId === null), 'normal onboarding consent sync leaked a Demo Persona identity')
 
     const firstStoredBackendIdentity = storage.getItem('ezkin:normal-backend-identity')
     storage.removeItem('ezkin:normal-backend-identity')

@@ -6,7 +6,7 @@ import type {
   SkinType,
   SkinConcern,
 } from '../types/onboarding'
-import { apiRequest } from './apiClient'
+import { ACCESS_TOKEN_STORAGE_KEY, apiRequest } from './apiClient'
 import { isDemoPersonaUser } from '../utils/appDateTime'
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API !== 'false'
@@ -14,7 +14,11 @@ const USE_ONBOARDING_API = import.meta.env.VITE_USE_ONBOARDING_API === 'true'
 const PROFILE_STORAGE_KEY = 'ezkin:onboarding-profiles'
 
 function shouldSyncOnboarding(userId: string): boolean {
-  return !isDemoPersonaUser(userId) && (USE_ONBOARDING_API || !USE_MOCK_API)
+  const token = localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+  const hasBackendIdentity = Boolean(token && !token.startsWith('mock-token-'))
+  return !isDemoPersonaUser(userId)
+    && hasBackendIdentity
+    && (USE_ONBOARDING_API || !USE_MOCK_API)
 }
 
 type ProfileUpdate = Partial<Omit<OnboardingProfile, 'userId'>>
