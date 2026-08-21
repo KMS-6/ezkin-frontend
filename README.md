@@ -1,18 +1,37 @@
-# EZkin Frontend
+<div align="center">
 
-> 피부 관리는 챙기고, 기록은 EZkin에게 맡겨요.
+# 🧴 EZkin Frontend
 
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Capacitor](https://img.shields.io/badge/Capacitor-Android-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
-[![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://ezkin-dev1.vercel.app)
-[![CI](https://github.com/KMS-6/ezkin-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/KMS-6/ezkin-frontend/actions/workflows/ci.yml)
+### 피부 관리는 챙기고, 기록은 EZkin에게 맡겨요 ✨
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Capacitor](https://img.shields.io/badge/Capacitor-Android-119EFF?style=for-the-badge&logo=capacitor&logoColor=white)](https://capacitorjs.com)
+
+[![CI](https://img.shields.io/github/actions/workflow/status/KMS-6/ezkin-frontend/ci.yml?style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/KMS-6/ezkin-frontend/actions/workflows/ci.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/KMS-6/ezkin-frontend?style=flat-square&logo=git&logoColor=white)](https://github.com/KMS-6/ezkin-frontend/commits/main)
+
+**[🌐 웹 바로가기](https://ezkin-dev1.vercel.app)** · **[📘 문서](docs/onboarding.md)** · **[🔌 백엔드 저장소](https://github.com/KMS-6/ezkin-backend)**
+
+</div>
+
+---
 
 EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프런트엔드 전용**이며,
 백엔드는 별도 저장소 [`KMS-6/ezkin-backend`](https://github.com/KMS-6/ezkin-backend)에서
 개발·배포됩니다.
+
+## 🔗 배포 링크
+
+[![Web](https://img.shields.io/badge/🌐_Web-ezkin--dev1.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://ezkin-dev1.vercel.app)
+[![API](https://img.shields.io/badge/⚙️_Backend_API-ezkin--api.onrender.com-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://ezkin-api.onrender.com/api/v1)
+
+| 구분 | 링크 |
+|---|---|
+| 🌐 웹 (Vercel Production) | <https://ezkin-dev1.vercel.app> |
+| ⚙️ 백엔드 API (Render) | <https://ezkin-api.onrender.com/api/v1> |
 
 ## ✨ 주요 기능
 
