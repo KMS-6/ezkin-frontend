@@ -14,10 +14,23 @@ EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프�
 백엔드는 별도 저장소 [`KMS-6/ezkin-backend`](https://github.com/KMS-6/ezkin-backend)에서
 개발·배포됩니다.
 
+## ✨ 주요 기능
+
+- 온보딩: 피부 고민·보유 화장품 등록, 일반 사용자 생성 및 access token 발급
+- Today Briefing: 오늘의 피부 위험도와 케어 순서 안내
+- Life Log: 식사·물 섭취 1~2탭 입력, 날씨 연동
+- My Shelf: 보유 화장품 등록·조회·수정
+- Skin Scan: 카메라 촬영 기반 피부 스캔 및 결과 확인
+- Trigger Analysis: 72시간 패턴 분석, 14일·30일 리포트
+- SOS Care: 위급 상황 안전 체크와 대화형 안내
+- Demo A/B/C 시나리오 및 실제 사용자 흐름 동시 지원
+
+화면별 상세 동작은 [`docs/product-overview.md`](docs/product-overview.md)를 참고합니다.
+
 ## 👥 개발자
 
-| [<img src="https://github.com/Je-hye.png" width="80"><br>Je-hye](https://github.com/Je-hye) | [<img src="https://github.com/eunjii0722.png" width="80"><br>eunjii0722](https://github.com/eunjii0722) | [<img src="https://github.com/AnDongKyun1103.png" width="80"><br>AnDongKyun1103](https://github.com/AnDongKyun1103) |
-|:---:|:---:|:---:|
+| [<img src="https://github.com/eunjii0722.png" width="80"><br>eunjii0722](https://github.com/eunjii0722) | [<img src="https://github.com/AnDongKyun1103.png" width="80"><br>AnDongKyun1103](https://github.com/AnDongKyun1103) |
+|:---:|:---:|
 
 ## 문서
 
@@ -91,3 +104,19 @@ VITE_USE_MOCK_API=true
 ```
 
 `.env` 생성 방법은 [실행 방법 2단계](#2-환경-변수-준비)를 참고합니다. 자세한 변수 목록과 설명은 [`docs/product-overview.md`](docs/product-overview.md#3-environment-variables)를 참고합니다.
+
+## 📁 프로젝트 구조
+
+```text
+frontend/src/
+├─ components/       # 공통 UI 컴포넌트
+├─ features/         # 도메인별 기능 단위 (auth, onboarding, briefing, shelf, scan ...)
+├─ layouts/          # 앱 셸 레이아웃
+├─ mocks/            # Mock 데이터 (VITE_USE_MOCK_API=true일 때 사용)
+├─ pages/            # 라우트별 페이지
+├─ services/         # 백엔드 통신 유일 진입점 (Mock ↔ 실제 API 전환 포함)
+├─ types/            # 공통 타입 정의
+└─ utils/            # 유틸리티 함수
+```
+
+Service Layer 상세 역할과 각 화면의 Backend 연동 범위는 [`docs/product-overview.md`](docs/product-overview.md#7-주요-폴더-구조)와 [`docs/architecture.md`](docs/architecture.md)를 참고합니다.
