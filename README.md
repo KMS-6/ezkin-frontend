@@ -2,9 +2,22 @@
 
 > 피부 관리는 챙기고, 기록은 EZkin에게 맡겨요.
 
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Capacitor](https://img.shields.io/badge/Capacitor-Android-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-000000?logo=vercel&logoColor=white)](https://ezkin-dev1.vercel.app)
+[![CI](https://github.com/KMS-6/ezkin-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/KMS-6/ezkin-frontend/actions/workflows/ci.yml)
+
 EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프런트엔드 전용**이며,
 백엔드는 별도 저장소 [`KMS-6/ezkin-backend`](https://github.com/KMS-6/ezkin-backend)에서
 개발·배포됩니다.
+
+## 👥 개발자
+
+| [<img src="https://github.com/Je-hye.png" width="80"><br>Je-hye](https://github.com/Je-hye) | [<img src="https://github.com/eunjii0722.png" width="80"><br>eunjii0722](https://github.com/eunjii0722) | [<img src="https://github.com/AnDongKyun1103.png" width="80"><br>AnDongKyun1103](https://github.com/AnDongKyun1103) |
+|:---:|:---:|:---:|
 
 ## 문서
 
@@ -19,27 +32,62 @@ EZkin 프런트엔드(React + Vite) 저장소입니다. 이 저장소는 **프�
 - [dev2/dev3 개발 히스토리 기록](docs/dev-history-dev2-dev3.md) (제출 직전 상황 스냅샷)
 - [CHANGELOG](CHANGELOG.md)
 
-## 빠른 시작
+## 🚀 실행 방법
+
+### 요구 사항
+
+- Node.js 18 이상, npm
+- Android APK 빌드 시: Android Studio(SDK) + JDK 17
+
+### 1. 설치
 
 ```bash
 cd frontend
 npm install
+```
+
+### 2. 환경 변수 준비
+
+```bash
+cp .env.example .env
+```
+
+`.env`에서 `VITE_API_BASE_URL`, `VITE_USE_MOCK_API`를 필요에 맞게 설정합니다. 자세한 변수 목록은 [환경 변수](#-환경-변수) 절을 참고합니다.
+
+### 3. 개발 서버 실행
+
+```bash
 npm run dev
 ```
 
+### 4. 린트 / 테스트 / 빌드
+
 ```bash
-npm run lint
-npm run test:entry
-npm run build
+npm run lint          # oxlint
+npm run test:entry     # 진입점 통합 점검
+npm run test:api-smoke # 실제 API 대상 smoke test (선택)
+npm run build          # tsc -b && vite build
+npm run preview        # 빌드 결과 로컬 미리보기
 ```
 
-## 환경 변수
+### 5. Android APK 빌드 (Capacitor)
 
-`frontend/.env.example`을 복사해 `.env`를 생성합니다.
+```bash
+npm run build
+npx cap sync android
+cd android
+./gradlew assembleDebug
+```
+
+- APK 출력 경로: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`
+- 웹(Vercel) 환경변수 변경은 재배포 후 적용되며, 기존 APK에는 자동 반영되지 않습니다. 코드나 Android 설정이 바뀌면 APK도 다시 빌드해야 합니다.
+- 자세한 배포/환경변수 현황은 [`docs/current-implementation-status.md`](docs/current-implementation-status.md)를 참고합니다.
+
+## 🔧 환경 변수
 
 ```env
 VITE_API_BASE_URL=
 VITE_USE_MOCK_API=true
 ```
 
-자세한 변수 목록과 설명은 [`docs/product-overview.md`](docs/product-overview.md#3-environment-variables)를 참고합니다.
+`.env` 생성 방법은 [실행 방법 2단계](#2-환경-변수-준비)를 참고합니다. 자세한 변수 목록과 설명은 [`docs/product-overview.md`](docs/product-overview.md#3-environment-variables)를 참고합니다.
